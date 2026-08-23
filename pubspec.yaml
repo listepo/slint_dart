@@ -6,7 +6,9 @@ environment:
 
 workspace:
   - slint
+  - slint_build
   - slint_compiler
   - slint_native
   - slint_skia
   - example
+

@@ -1,28 +1,8 @@
-import 'dart:ffi';
 import 'dart:io';
 import 'package:slint_native/slint_native.dart';
 import 'package:test/test.dart';
 
 void main() {
-  setUpAll(() {
-    // Find the dylib; tests are run from example directory
-    final candidates = [
-      '../target/debug/libslint_native_ffi.dylib',
-      'target/debug/libslint_native_ffi.dylib',
-    ]
-        .map((p) => File(p).absolute)
-        .where((f) => f.existsSync())
-        .toList();
-
-    if (candidates.isEmpty) {
-      throw StateError(
-          'libslint_native_ffi.dylib not found. Build with: cargo build -p slint-native-ffi');
-    }
-
-    final dylib = candidates.first;
-    slintNativeLibraryOverride = () => DynamicLibrary.open(dylib.path);
-  });
-
   test('compiles todo.slint', () async {
     // Find todo.slint relative to current directory
     final cwd = Directory.current.path;

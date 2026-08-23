@@ -12,21 +12,9 @@ dependencies:
     sdk: flutter
   slint: ^0.1.0
   ffi: ^2.1.0
+  hooks: ^2.0.0
+  slint_build: ^0.1.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0
   ffigen: ^21.0.0
-
-flutter:
-  plugin:
-    platforms:
-      macos:
-        ffiPlugin: true
-      linux:
-        ffiPlugin: true
-      windows:
-        ffiPlugin: true
-      android:
-        ffiPlugin: true
-      ios:
-        ffiPlugin: true

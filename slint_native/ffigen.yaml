@@ -1,6 +1,23 @@
 name: SlintNativeBindings
 description: Generated FFI bindings for slint-native-ffi. Do not edit.
 output: lib/src/bindings.g.dart
+ffi-native:
+  asset-id: 'package:slint_native/src/bindings.g.dart'
+functions:
+  include:
+    - 'slint_native_.*'
+globals:
+  exclude:
+    - '.*'
+macros:
+  exclude:
+    - '.*'
+enums:
+  exclude:
+    - '.*'
+unnamed-enums:
+  exclude:
+    - '.*'
 headers:
   entry-points:
     - rust/include/slint_native_ffi.h

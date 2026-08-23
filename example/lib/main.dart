@@ -1,5 +1,3 @@
-import 'dart:ffi';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:slint/slint.dart';
@@ -8,67 +6,8 @@ import 'package:slint_compiler/slint_compiler.dart';
 
 const backend = String.fromEnvironment('SLINT_BACKEND', defaultValue: 'interpreter');
 
-DynamicLibrary _openDylib({
-  required String envPath,
-  required List<String> candidates,
-  required String missing,
-}) {
-  if (envPath.isNotEmpty) {
-    return DynamicLibrary.open(envPath);
-  }
-
-  final found = candidates
-      .map(File.new)
-      .where((f) => f.existsSync())
-      .map((f) => f.path)
-      .toList();
-
-  if (found.isEmpty) {
-    throw StateError(missing);
-  }
-
-  return DynamicLibrary.open(found.first);
-}
-
-DynamicLibrary _openSlintNative() {
-  const envPath = String.fromEnvironment('SLINT_NATIVE_LIB');
-  return _openDylib(
-    envPath: envPath,
-    candidates: const [
-      'target/debug/libslint_native_ffi.dylib',
-      '../target/debug/libslint_native_ffi.dylib',
-      'target/debug/libslint_native_ffi.so',
-      '../target/debug/libslint_native_ffi.so',
-    ],
-    missing: 'libslint_native_ffi not found.\n'
-        'Build with: cargo build -p slint-native-ffi\n'
-        'Or pass: --dart-define=SLINT_NATIVE_LIB=/absolute/path/to/libslint_native_ffi.dylib',
-  );
-}
-
-DynamicLibrary _openSlintCompiler() {
-  const envPath = String.fromEnvironment('SLINT_COMPILER_LIB');
-  return _openDylib(
-    envPath: envPath,
-    candidates: const [
-      'target/debug/libslint_compiler_ffi.dylib',
-      '../target/debug/libslint_compiler_ffi.dylib',
-      'target/debug/libslint_compiler_ffi.so',
-      '../target/debug/libslint_compiler_ffi.so',
-    ],
-    missing: 'libslint_compiler_ffi not found.\n'
-        'Build with: cargo build -p slint-compiler-ffi\n'
-        'Or pass: --dart-define=SLINT_COMPILER_LIB=/absolute/path/to/libslint_compiler_ffi.dylib',
-  );
-}
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  if (backend == 'interpreter') {
-    slintNativeLibraryOverride = _openSlintNative;
-  } else if (backend == 'compiled') {
-    slintCompilerLibraryOverride = _openSlintCompiler;
-  }
   runApp(const MyApp());
 }
 

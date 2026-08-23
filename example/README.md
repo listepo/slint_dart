@@ -2,6 +2,9 @@
 
 A Slint UI that can run via two backends: **interpreter** (runtime compilation via `slint_native`) or **compiled** (FFI bindings to precompiled Rust).
 
+The Rust crates are built automatically by each package's `hook/build.dart`
+(Dart native assets / code assets) — no manual `cargo build`, no dylib paths.
+
 ## Backends
 
 ### Interpreter (default)
@@ -9,7 +12,6 @@ A Slint UI that can run via two backends: **interpreter** (runtime compilation v
 Loads `todo.slint`, compiles at runtime, and renders via `slint_native`.
 
 ```bash
-cargo build -p slint-native-ffi
 cd example && mise exec -- flutter run
 ```
 
@@ -18,7 +20,6 @@ cd example && mise exec -- flutter run
 Uses `slint_compiler` for static TodoApp bindings, no asset load.
 
 ```bash
-cargo build -p slint-compiler-ffi
 cd example && mise exec -- flutter run --dart-define=SLINT_BACKEND=compiled
 ```
 
@@ -27,26 +28,27 @@ cd example && mise exec -- flutter run --dart-define=SLINT_BACKEND=compiled
 Both backends are tested:
 
 ```bash
-cargo build -p slint-native-ffi
-cargo build -p slint-compiler-ffi
 cd example && mise exec -- flutter test
 ```
 
 - `test/todo_smoke_test.dart` — interpreter path
 - `test/todo_compiled_smoke_test.dart` — compiled path
 
-All tests pass before submission.
+## Rust debug/release
 
-## Debug
+The Rust crates build with cargo's `release` profile by default (debug Slint
+rendering is unusably slow). To build them in debug, set the `profile`
+user-define in the pubspec that the hook runner reads — the workspace root
+`pubspec.yaml` in this repo (for a standalone app it would be the app's own):
 
-Pass dylib overrides via `--dart-define`:
-
-```bash
-# Interpreter from custom path
-flutter run --dart-define=SLINT_NATIVE_LIB=/path/to/libslint_native_ffi.dylib
-
-# Compiled from custom path (if needed)
-flutter run --dart-define=SLINT_BACKEND=compiled
+```yaml
+hooks:
+  user_defines:
+    slint_native:
+      profile: debug
+    slint_compiler:
+      profile: debug
 ```
 
-Debug entitlements on macOS disable the sandbox, allowing dynamic library loads.
+This is independent of Flutter's own `--debug`/`--release` — hooks don't see
+the Flutter build mode.

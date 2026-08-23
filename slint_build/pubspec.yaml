@@ -1,0 +1,16 @@
+name: slint_build
+description: Shared build-hook plumbing for the slint_dart packages — runs cargo through a bazel_worker persistent worker and emits code assets.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  bazel_worker: ^1.1.5
+  code_assets: ^1.2.1
+  hooks: ^2.0.0
+
+dev_dependencies:
+  lints: ^6.0.0

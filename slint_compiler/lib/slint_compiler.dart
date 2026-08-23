@@ -5,4 +5,3 @@
 library;
 
 export 'src/compiled_todo_app.dart' show CompiledTodoApp;
-export 'src/library.dart' show slintCompilerLibraryOverride, openSlintCompilerLibrary;

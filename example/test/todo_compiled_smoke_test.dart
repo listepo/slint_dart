@@ -1,28 +1,7 @@
-import 'dart:ffi';
-import 'dart:io';
 import 'package:slint_compiler/slint_compiler.dart';
 import 'package:test/test.dart';
 
 void main() {
-  setUpAll(() {
-    // Find the dylib; tests are run from example directory
-    final candidates = [
-      '../target/debug/libslint_compiler_ffi.dylib',
-      'target/debug/libslint_compiler_ffi.dylib',
-    ]
-        .map((p) => File(p).absolute)
-        .where((f) => f.existsSync())
-        .toList();
-
-    if (candidates.isEmpty) {
-      throw StateError(
-          'libslint_compiler_ffi.dylib not found. Build with: cargo build -p slint-compiler-ffi');
-    }
-
-    final dylib = candidates.first;
-    slintCompilerLibraryOverride = () => DynamicLibrary.open(dylib.path);
-  });
-
   test('CompiledTodoApp constructs', () {
     final app = CompiledTodoApp();
     expect(app, isNotNull);

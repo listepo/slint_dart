@@ -6,17 +6,14 @@ import 'package:ffi/ffi.dart';
 import 'package:slint/slint.dart';
 
 import 'bindings.g.dart';
-import 'library.dart';
-
-final _bindings = SlintCompilerBindings(openSlintCompilerLibrary());
 
 String _getLastError() {
-  final errorCStr = _bindings.slint_compiler_last_error();
+  final errorCStr = slint_compiler_last_error();
   if (errorCStr.address == 0) {
     return 'Unknown error';
   }
   final error = errorCStr.cast<Utf8>().toDartString();
-  _bindings.slint_compiler_string_free(errorCStr.cast());
+  slint_compiler_string_free(errorCStr.cast());
   return error;
 }
 
@@ -49,7 +46,7 @@ class _CompiledTodoSoftwareRenderTarget implements SlintSoftwareRenderTarget {
     final bufferSize = width * height * 4;
     _pixelBuffer = malloc<Uint8>(bufferSize);
     _pixels = _pixelBuffer.asTypedList(bufferSize);
-    _bindings.slint_compiler_todo_set_size(_app._handle, width, height);
+    slint_compiler_todo_set_size(_app._handle, width, height);
   }
 
   @override
@@ -57,7 +54,7 @@ class _CompiledTodoSoftwareRenderTarget implements SlintSoftwareRenderTarget {
     if (_pixelBuffer.address == 0) {
       return false;
     }
-    return _bindings.slint_compiler_todo_render(
+    return slint_compiler_todo_render(
       _app._handle,
       _pixelBuffer,
       _pixels.lengthInBytes,
@@ -69,7 +66,7 @@ class _CompiledTodoSoftwareRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   void dispatchPointerEvent(SlintPointerEvent event) {
-    _bindings.slint_compiler_todo_pointer_event(
+    slint_compiler_todo_pointer_event(
       _app._handle,
       event.kind.index,
       event.x,
@@ -84,7 +81,7 @@ class _CompiledTodoSoftwareRenderTarget implements SlintSoftwareRenderTarget {
   void dispatchKeyEvent(SlintKeyEvent event) {
     final textCStr = event.text.toNativeUtf8();
     try {
-      _bindings.slint_compiler_todo_key_event(
+      slint_compiler_todo_key_event(
         _app._handle,
         textCStr.cast(),
         event.pressed,
@@ -121,7 +118,7 @@ class CompiledTodoApp implements SlintComponent {
   ///
   /// Throws [StateError] if the FFI call fails.
   CompiledTodoApp()
-      : _handle = _bindings.slint_compiler_todo_new() {
+      : _handle = slint_compiler_todo_new() {
     if (_handle.address == 0) {
       throw StateError('Failed to create TodoApp: ${_getLastError()}');
     }
@@ -137,12 +134,12 @@ class CompiledTodoApp implements SlintComponent {
       throw ArgumentError('CompiledTodoApp has no property "$name"');
     }
 
-    final jsonCStr = _bindings.slint_compiler_todo_get_model(_handle);
+    final jsonCStr = slint_compiler_todo_get_model(_handle);
     if (jsonCStr.address == 0) {
       throw StateError(_getLastError());
     }
     final json = jsonCStr.cast<Utf8>().toDartString();
-    _bindings.slint_compiler_string_free(jsonCStr.cast());
+    slint_compiler_string_free(jsonCStr.cast());
     return jsonDecode(json);
   }
 
@@ -157,7 +154,7 @@ class CompiledTodoApp implements SlintComponent {
     final jsonCStr = jsonStr.toNativeUtf8();
 
     try {
-      final success = _bindings.slint_compiler_todo_set_model(_handle, jsonCStr.cast());
+      final success = slint_compiler_todo_set_model(_handle, jsonCStr.cast());
       if (!success) {
         throw StateError(_getLastError());
       }
@@ -181,7 +178,7 @@ class CompiledTodoApp implements SlintComponent {
           },
         );
         callable = c;
-        registered = _bindings.slint_compiler_todo_on_add_todo(
+        registered = slint_compiler_todo_on_add_todo(
             _handle, c.nativeFunction, nullptr);
       case 'toggle-todo':
         final c = NativeCallable<
@@ -191,7 +188,7 @@ class CompiledTodoApp implements SlintComponent {
           },
         );
         callable = c;
-        registered = _bindings.slint_compiler_todo_on_toggle_todo(
+        registered = slint_compiler_todo_on_toggle_todo(
             _handle, c.nativeFunction, nullptr);
       case 'remove-done':
         final c = NativeCallable<
@@ -201,7 +198,7 @@ class CompiledTodoApp implements SlintComponent {
           },
         );
         callable = c;
-        registered = _bindings.slint_compiler_todo_on_remove_done(
+        registered = slint_compiler_todo_on_remove_done(
             _handle, c.nativeFunction, nullptr);
       default:
         throw ArgumentError('CompiledTodoApp has no callback "$name"');
@@ -222,16 +219,16 @@ class CompiledTodoApp implements SlintComponent {
       case 'add-todo':
         final textCStr = (arguments[0] as String).toNativeUtf8();
         try {
-          ok = _bindings.slint_compiler_todo_invoke_add_todo(
+          ok = slint_compiler_todo_invoke_add_todo(
               _handle, textCStr.cast());
         } finally {
           malloc.free(textCStr);
         }
       case 'toggle-todo':
-        ok = _bindings.slint_compiler_todo_invoke_toggle_todo(
+        ok = slint_compiler_todo_invoke_toggle_todo(
             _handle, arguments[0] as int, arguments[1] as bool);
       case 'remove-done':
-        ok = _bindings.slint_compiler_todo_invoke_remove_done(_handle);
+        ok = slint_compiler_todo_invoke_remove_done(_handle);
       default:
         throw ArgumentError('CompiledTodoApp has no callback "$name"');
     }
@@ -244,7 +241,7 @@ class CompiledTodoApp implements SlintComponent {
 
   @override
   void dispose() {
-    _bindings.slint_compiler_todo_free(_handle);
+    slint_compiler_todo_free(_handle);
     for (final callable in _callbacks.values) {
       callable.close();
     }
