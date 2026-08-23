@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `slint/` | `slint` | `slint-dart-core` | Backend-agnostic core: Dart API (engine, component, render targets, input events), the `SlintView` widget, and a shared Rust events module mapping the FFI event encoding onto `slint::platform::WindowEvent`. No interpreter, no codegen. |
 | `slint_interpreter/` | — | `slint-dart-interpreter` | Runtime `.slint` path: wraps `slint-interpreter` (compile, instantiate, JSON value bridge, callbacks) behind a renderer-agnostic API. |
-| `slint_compiler/` | `slint_compiler` | `slint-compiler-ffi` | Compile-time `.slint` path: `slint-build` codegen in build.rs, per-component typed C ABI. **No slint-interpreter anywhere.** Ships the example's `TodoApp` ABI and doubles as the pattern apps copy for their own components. |
+| `slint_compiler/` | `slint_compiler` | — | Compile-time `.slint` path in pure Dart: a build_runner builder (`dart run build_runner build`; one-off CLI: `dart run slint_compiler foo.slint`) generates `foo.g.dart` next to each `foo.slint`, with one typed wrapper class per component (properties, callbacks, render target). The embedded source runs on the `slint_native` interpreter engine at runtime. |
 | `slint_native/` | `slint_native` | `slint-native-ffi` | Interpreter backend over FFI: `slint-dart-interpreter` + software renderer (`slint::platform::software_renderer`) → RGBA frames. |
 | `slint_skia/` | `slint_skia` | `slint-skia-ffi` | Interpreter + `i-slint-renderer-skia` (GPU) → Flutter external texture. GPU surface plumbing stubbed. |
 
@@ -16,10 +16,10 @@ Two independent ways to render a `.slint` UI:
 
 ```
 runtime:       .slint file ──▶ slint_interpreter ──▶ slint_native (or slint_skia) ──▶ SlintView
-compile-time:  .slint file ──▶ slint-build (build.rs) ──▶ slint_compiler typed ABI ──▶ SlintView
+compile-time:  .slint file ──▶ build_runner (slint_compiler) ──▶ foo.g.dart (typed Dart) ──▶ slint_native ──▶ SlintView
 ```
 
-`slint_interpreter` renders without `slint_compiler`; `slint_compiler` renders without `slint-interpreter`. Both feed the same `SlintView` widget via `SlintSoftwareRenderTarget`.
+Both paths execute on the `slint_native` engine and feed the same `SlintView` widget via `SlintSoftwareRenderTarget`; the compiled path adds generated typed wrappers (and embeds the `.slint` source so no asset load is needed).
 
 ## Bindings pipeline
 
@@ -39,7 +39,8 @@ resolved against the code asset `package:<pkg>/src/bindings.g.dart` — no
 
 ## Native assets build
 
-Each FFI package ships a `hook/build.dart` (Dart native assets). During
+The FFI packages (`slint_native`, `slint_skia`) ship a `hook/build.dart`
+(Dart native assets). During
 `flutter run` / `flutter build` / `flutter test`, the hook builds the
 package's crate with cargo — driven through a `bazel_worker` persistent
 worker (`slint_build/bin/cargo_worker.dart`) — and bundles the produced
@@ -70,6 +71,6 @@ hooks:
 - [x] `SlintView` widget (blits software frames; lives in the `slint` package)
 - [x] Rust→Dart callbacks via `NativeCallable`
 - [x] Interpreter path end-to-end (example todo app, smoke-tested)
-- [x] Compiled path (`slint_compiler`) with example backend switch (`--dart-define=SLINT_BACKEND=compiled`)
+- [x] Compiled path (`slint_compiler`): `.slint` → typed `*.g.dart` codegen with example backend switch (`--dart-define=SLINT_BACKEND=compiled`)
 - [x] Build glue: native assets `hook/build.dart` per package + `bazel_worker` cargo worker (`flutter build/run/test` compiles the Rust crates; debug/release via `profile` user-define)
 - [ ] Skia GPU surface plumbing per platform (Metal / GL / Vulkan / D3D); `Texture` widget path

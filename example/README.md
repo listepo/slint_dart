@@ -9,7 +9,7 @@ The Rust crates are built automatically by each package's `hook/build.dart`
 
 ### Interpreter (default)
 
-Loads `todo.slint`, compiles at runtime, and renders via `slint_native`.
+Loads `lib/todo.slint`, compiles at runtime, and renders via `slint_native`.
 
 ```bash
 cd example && mise exec -- flutter run
@@ -17,10 +17,17 @@ cd example && mise exec -- flutter run
 
 ### Compiled
 
-Uses `slint_compiler` for static TodoApp bindings, no asset load.
+Uses the generated typed `TodoApp` (`lib/todo.g.dart`), no asset load.
 
 ```bash
 cd example && mise exec -- flutter run --dart-define=SLINT_BACKEND=compiled
+```
+
+Regenerate after editing `lib/todo.slint` (the `slint_compiler` builder turns
+every `*.slint` in the package into a sibling `*.g.dart`):
+
+```bash
+cd example && dart run build_runner build
 ```
 
 ## Test
@@ -45,8 +52,6 @@ user-define in the pubspec that the hook runner reads — the workspace root
 hooks:
   user_defines:
     slint_native:
-      profile: debug
-    slint_compiler:
       profile: debug
 ```
 

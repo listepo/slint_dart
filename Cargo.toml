@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "slint/rust",
     "slint_interpreter",
-    "slint_compiler/rust",
     "slint_native/rust",
     "slint_skia/rust",
 ]

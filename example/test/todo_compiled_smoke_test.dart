@@ -1,23 +1,22 @@
-import 'package:slint_compiler/slint_compiler.dart';
 import 'package:test/test.dart';
+import 'package:todo_example/todo.g.dart';
 
 void main() {
-  test('CompiledTodoApp constructs', () {
-    final app = CompiledTodoApp();
+  test('TodoApp creates from embedded source', () async {
+    final app = await TodoApp.create();
     expect(app, isNotNull);
     app.dispose();
   });
 
-  test('CompiledTodoApp todo-model roundtrip', () {
-    final app = CompiledTodoApp();
+  test('TodoApp todo-model roundtrip (typed)', () async {
+    final app = await TodoApp.create();
 
-    final model = [
+    app.todoModel = [
       {'title': 'buy milk', 'checked': false},
       {'title': 'ship demo', 'checked': true},
     ];
-    app.setProperty('todo-model', model);
 
-    final back = app.getProperty('todo-model') as List<Object?>;
+    final back = app.todoModel;
     expect(back.length, 2);
     expect((back[0] as Map<Object?, Object?>)['title'], 'buy milk');
     expect((back[0] as Map<Object?, Object?>)['checked'], false);
@@ -27,49 +26,47 @@ void main() {
     app.dispose();
   });
 
-  test('CompiledTodoApp callbacks fire with typed args', () {
-    final app = CompiledTodoApp();
+  test('TodoApp callbacks fire with typed args', () async {
+    final app = await TodoApp.create();
 
     List<Object?>? added;
     List<Object?>? toggled;
     var removedDone = false;
-    app.setCallbackHandler('add-todo', (args) {
+    app.onAddTodo((args) {
       added = args;
       return null;
     });
-    app.setCallbackHandler('toggle-todo', (args) {
+    app.onToggleTodo((args) {
       toggled = args;
       return null;
     });
-    app.setCallbackHandler('remove-done', (args) {
+    app.onRemoveDone((args) {
       removedDone = true;
       return null;
     });
 
-    app.invokeCallback('add-todo', ['write tests']);
+    app.invokeAddTodo(['write tests']);
     expect(added, ['write tests']);
 
-    app.invokeCallback('toggle-todo', [1, true]);
+    app.invokeToggleTodo([1, true]);
     expect(toggled, [1, true]);
 
-    app.invokeCallback('remove-done', []);
+    app.invokeRemoveDone();
     expect(removedDone, isTrue);
 
     app.dispose();
   });
 
-  test('CompiledTodoApp renders to pixels', () {
-    final app = CompiledTodoApp();
+  test('TodoApp renders to pixels', () async {
+    final app = await TodoApp.create();
     final target = app.renderTarget;
 
-    // Initialize model and set initial size
-    app.setProperty('todo-model', [
+    app.todoModel = [
       {'title': 'test todo', 'checked': false},
-    ]);
+    ];
 
     target.resize(400, 300);
 
-    // Check if render succeeds
     final renderResult = target.render();
     expect(renderResult, isTrue,
         reason: 'First render should succeed. Render returned: $renderResult');

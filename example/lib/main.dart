@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:slint/slint.dart';
 import 'package:slint_native/slint_native.dart';
-import 'package:slint_compiler/slint_compiler.dart';
+import 'todo.g.dart';
 
 const backend = String.fromEnvironment('SLINT_BACKEND', defaultValue: 'interpreter');
 
@@ -51,12 +51,12 @@ class _TodoPageState extends State<TodoPage> {
   Future<void> _load() async {
     try {
       if (backend == 'compiled') {
-        final app = CompiledTodoApp();
+        final app = await TodoApp.create();
         _component = app;
         _target = app.renderTarget;
       } else {
         _engine = NativeSlintEngine();
-        final source = await rootBundle.loadString('todo.slint');
+        final source = await rootBundle.loadString('lib/todo.slint');
         final defs = await _engine!.compile(source, path: 'todo.slint');
         try {
           final instance = defs.first.instantiate() as NativeSlintComponent;

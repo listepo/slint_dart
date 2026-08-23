@@ -4,8 +4,5 @@
 /// (Skia/GPU renderer) provide the implementations.
 library;
 
-export 'src/component.dart';
-export 'src/engine.dart';
-export 'src/events.dart';
-export 'src/render_target.dart';
+export 'slint_core.dart';
 export 'src/slint_view.dart';
