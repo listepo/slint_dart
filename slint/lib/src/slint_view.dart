@@ -12,7 +12,7 @@ import 'render_target.dart';
 /// pointer and keyboard input handling.
 ///
 /// Backend-agnostic: works with any [SlintSoftwareRenderTarget] — the
-/// interpreter path (`slint_native`) or the compiled path (`slint_compiler`).
+/// interpreter path (`slint_interpreter`) or the compiled path (`slint_compiler`).
 ///
 /// Example:
 /// ```dart

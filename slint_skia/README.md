@@ -46,7 +46,7 @@ A Flutter FFI plugin providing GPU-accelerated Slint component rendering via the
    - Android: Vulkan instance from the platform layer.
    - Windows/Linux: OpenGL context from the host environment.
 
-4. **Reference**: `slint_native` software rendering path (once implemented) will provide the pattern for platform abstraction.
+4. **Reference**: the `slint_interpreter` software rendering path provides the pattern for platform abstraction.
 
 #### Callback Handler
 
@@ -183,7 +183,7 @@ dart format --set-exit-if-changed lib/
 
 - Keep Rust code **simple and panic-safe** (no exotic dependencies).
 - All Rust errors → thread-local string; Dart sees them in `_getLastError()`.
-- C ABI prefix is `slint_skia_*` (not `slint_native_*`; namespaces are separate).
+- C ABI prefix is `slint_skia_*` (not `slint_interpreter_*`; namespaces are separate).
 - Pointer safety: `nullptr` checks are in FFI bindings (Dart side), Rust validates all inputs.
 
 ---

@@ -1,5 +1,5 @@
 language = "C"
-include_guard = "SLINT_NATIVE_FFI_H"
+include_guard = "SLINT_INTERPRETER_FFI_H"
 cpp_compat = true
 
 [export]

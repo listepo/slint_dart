@@ -24,7 +24,7 @@ abstract interface class SlintRenderTarget {
 }
 
 /// Software-rendered target exposing the frame as premultiplied RGBA8888
-/// pixels (`slint_native`).
+/// pixels (`slint_interpreter`).
 abstract interface class SlintSoftwareRenderTarget implements SlintRenderTarget {
   Uint8List get pixels;
 }

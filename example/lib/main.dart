@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:slint/slint.dart';
-import 'package:slint_native/slint_native.dart';
+import 'package:slint_interpreter/slint_interpreter.dart';
 import 'todo.g.dart';
 
-const backend = String.fromEnvironment('SLINT_BACKEND', defaultValue: 'interpreter');
+/// Backend follows the build mode (mirrors the hooks: debug bundles only the
+/// interpreter dylib, release/profile bundle only the AOT dylib).
+const useCompiled = !kDebugMode;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +37,7 @@ class TodoPage extends StatefulWidget {
 class _TodoPageState extends State<TodoPage> {
   SlintComponent? _component;
   SlintSoftwareRenderTarget? _target;
-  NativeSlintEngine? _engine;
+  InterpreterSlintEngine? _engine;
   Object? _loadError;
   final List<Map<String, Object?>> _todos = [
     {'title': 'Wire Slint into Flutter', 'checked': true},
@@ -50,16 +53,16 @@ class _TodoPageState extends State<TodoPage> {
 
   Future<void> _load() async {
     try {
-      if (backend == 'compiled') {
+      if (useCompiled) {
         final app = await TodoApp.create();
         _component = app;
         _target = app.renderTarget;
       } else {
-        _engine = NativeSlintEngine();
+        _engine = InterpreterSlintEngine();
         final source = await rootBundle.loadString('lib/todo.slint');
         final defs = await _engine!.compile(source, path: 'todo.slint');
         try {
-          final instance = defs.first.instantiate() as NativeSlintComponent;
+          final instance = defs.first.instantiate() as InterpreterSlintComponent;
           _component = instance;
           _target = instance.renderTarget;
         } finally {
@@ -127,7 +130,10 @@ class _TodoPageState extends State<TodoPage> {
     final target = _target;
     return Scaffold(
       appBar: AppBar(
-        title: Text('$_openCount open / ${_todos.length} total'),
+        title: Text(
+          '$_openCount open / ${_todos.length} total'
+          ' — ${useCompiled ? 'AOT' : 'interpreter'}',
+        ),
       ),
       body: _loadError != null
           ? Center(child: Text('$_loadError'))

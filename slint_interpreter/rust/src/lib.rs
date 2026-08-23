@@ -51,25 +51,25 @@ fn get_error() -> Option<String> {
 // === Engine ===
 
 #[repr(transparent)]
-pub struct SlintNativeEngine(*mut c_void);
+pub struct SlintInterpreterEngine(*mut c_void);
 
 #[no_mangle]
-pub extern "C" fn slint_native_engine_new() -> SlintNativeEngine {
+pub extern "C" fn slint_interpreter_engine_new() -> SlintInterpreterEngine {
     clear_error();
     match catch_unwind(|| {
         let engine = Engine::new();
         Box::into_raw(Box::new(engine)) as *mut c_void
     }) {
-        Ok(ptr) => SlintNativeEngine(ptr),
+        Ok(ptr) => SlintInterpreterEngine(ptr),
         Err(_) => {
-            set_error("panicked in slint_native_engine_new".into());
-            SlintNativeEngine(ptr::null_mut())
+            set_error("panicked in slint_interpreter_engine_new".into());
+            SlintInterpreterEngine(ptr::null_mut())
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_engine_free(engine: SlintNativeEngine) {
+pub extern "C" fn slint_interpreter_engine_free(engine: SlintInterpreterEngine) {
     if !engine.0.is_null() {
         let _ = catch_unwind(|| {
             drop(unsafe { Box::from_raw(engine.0 as *mut Engine) });
@@ -78,23 +78,23 @@ pub extern "C" fn slint_native_engine_free(engine: SlintNativeEngine) {
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_engine_compile(
-    engine: SlintNativeEngine,
+pub extern "C" fn slint_interpreter_engine_compile(
+    engine: SlintInterpreterEngine,
     source: *const c_char,
     path: *const c_char,
-) -> SlintNativeDefinitionList {
+) -> SlintInterpreterDefinitionList {
     clear_error();
     match catch_unwind(|| {
         if engine.0.is_null() || source.is_null() {
             set_error("null engine or source".into());
-            return SlintNativeDefinitionList(ptr::null_mut());
+            return SlintInterpreterDefinitionList(ptr::null_mut());
         }
 
         let source_str = match unsafe { CStr::from_ptr(source) }.to_str() {
             Ok(s) => s,
             Err(_) => {
                 set_error("source is not valid UTF-8".into());
-                return SlintNativeDefinitionList(ptr::null_mut());
+                return SlintInterpreterDefinitionList(ptr::null_mut());
             }
         };
 
@@ -105,7 +105,7 @@ pub extern "C" fn slint_native_engine_compile(
                 Ok(s) => s.to_string(),
                 Err(_) => {
                     set_error("path is not valid UTF-8".into());
-                    return SlintNativeDefinitionList(ptr::null_mut());
+                    return SlintInterpreterDefinitionList(ptr::null_mut());
                 }
             }
         };
@@ -115,17 +115,17 @@ pub extern "C" fn slint_native_engine_compile(
             Ok(d) => d,
             Err(e) => {
                 set_error(e);
-                return SlintNativeDefinitionList(ptr::null_mut());
+                return SlintInterpreterDefinitionList(ptr::null_mut());
             }
         };
 
         let list = Box::new(defs);
-        SlintNativeDefinitionList(Box::into_raw(list) as *mut c_void)
+        SlintInterpreterDefinitionList(Box::into_raw(list) as *mut c_void)
     }) {
         Ok(result) => result,
         Err(_) => {
-            set_error("panicked in slint_native_engine_compile".into());
-            SlintNativeDefinitionList(ptr::null_mut())
+            set_error("panicked in slint_interpreter_engine_compile".into());
+            SlintInterpreterDefinitionList(ptr::null_mut())
         }
     }
 }
@@ -133,10 +133,10 @@ pub extern "C" fn slint_native_engine_compile(
 // === Definitions ===
 
 #[repr(transparent)]
-pub struct SlintNativeDefinitionList(*mut c_void);
+pub struct SlintInterpreterDefinitionList(*mut c_void);
 
 #[no_mangle]
-pub extern "C" fn slint_native_definitions_count(list: SlintNativeDefinitionList) -> u32 {
+pub extern "C" fn slint_interpreter_definitions_count(list: SlintInterpreterDefinitionList) -> u32 {
     if list.0.is_null() {
         return 0;
     }
@@ -150,7 +150,7 @@ pub extern "C" fn slint_native_definitions_count(list: SlintNativeDefinitionList
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_definitions_name(list: SlintNativeDefinitionList, index: u32) -> *mut c_char {
+pub extern "C" fn slint_interpreter_definitions_name(list: SlintInterpreterDefinitionList, index: u32) -> *mut c_char {
     clear_error();
     if list.0.is_null() {
         return ptr::null_mut();
@@ -171,14 +171,14 @@ pub extern "C" fn slint_native_definitions_name(list: SlintNativeDefinitionList,
     }) {
         Ok(ptr) => ptr,
         Err(_) => {
-            set_error("panicked in slint_native_definitions_name".into());
+            set_error("panicked in slint_interpreter_definitions_name".into());
             ptr::null_mut()
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_definitions_free(list: SlintNativeDefinitionList) {
+pub extern "C" fn slint_interpreter_definitions_free(list: SlintInterpreterDefinitionList) {
     if !list.0.is_null() {
         let _ = catch_unwind(|| {
             drop(unsafe { Box::from_raw(list.0 as *mut Vec<Definition>) });
@@ -189,22 +189,22 @@ pub extern "C" fn slint_native_definitions_free(list: SlintNativeDefinitionList)
 // === Instance ===
 
 #[repr(transparent)]
-pub struct SlintNativeInstance(*mut c_void);
+pub struct SlintInterpreterInstance(*mut c_void);
 
-pub type SlintNativeCallbackFn = extern "C" fn(user_data: *mut c_void, args_json: *const c_char);
+pub type SlintInterpreterCallbackFn = extern "C" fn(user_data: *mut c_void, args_json: *const c_char);
 struct InstanceHandle {
     core: Instance,
     window: Rc<MinimalSoftwareWindow>,
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instantiate(
-    list: SlintNativeDefinitionList,
+pub extern "C" fn slint_interpreter_instantiate(
+    list: SlintInterpreterDefinitionList,
     index: u32,
-) -> SlintNativeInstance {
+) -> SlintInterpreterInstance {
     clear_error();
     if list.0.is_null() {
-        return SlintNativeInstance(ptr::null_mut());
+        return SlintInterpreterInstance(ptr::null_mut());
     }
     ensure_platform_initialized();
     match catch_unwind(|| {
@@ -243,16 +243,16 @@ pub extern "C" fn slint_native_instantiate(
 
         Box::into_raw(Box::new(handle)) as *mut c_void
     }) {
-        Ok(ptr) => SlintNativeInstance(ptr),
+        Ok(ptr) => SlintInterpreterInstance(ptr),
         Err(_) => {
-            set_error("panicked in slint_native_instantiate".into());
-            SlintNativeInstance(ptr::null_mut())
+            set_error("panicked in slint_interpreter_instantiate".into());
+            SlintInterpreterInstance(ptr::null_mut())
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_free(instance: SlintNativeInstance) {
+pub extern "C" fn slint_interpreter_instance_free(instance: SlintInterpreterInstance) {
     if !instance.0.is_null() {
         let _ = catch_unwind(|| {
             drop(unsafe { Box::from_raw(instance.0 as *mut InstanceHandle) });
@@ -261,7 +261,7 @@ pub extern "C" fn slint_native_instance_free(instance: SlintNativeInstance) {
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_set_size(instance: SlintNativeInstance, width: u32, height: u32) {
+pub extern "C" fn slint_interpreter_instance_set_size(instance: SlintInterpreterInstance, width: u32, height: u32) {
     if instance.0.is_null() {
         return;
     }
@@ -272,8 +272,8 @@ pub extern "C" fn slint_native_instance_set_size(instance: SlintNativeInstance, 
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_render(
-    instance: SlintNativeInstance,
+pub extern "C" fn slint_interpreter_instance_render(
+    instance: SlintInterpreterInstance,
     buffer: *mut u8,
     len: usize,
 ) -> bool {
@@ -307,15 +307,15 @@ pub extern "C" fn slint_native_instance_render(
     }) {
         Ok(result) => result,
         Err(_) => {
-            set_error("panicked in slint_native_instance_render".into());
+            set_error("panicked in slint_interpreter_instance_render".into());
             false
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_pointer_event(
-    instance: SlintNativeInstance,
+pub extern "C" fn slint_interpreter_instance_pointer_event(
+    instance: SlintInterpreterInstance,
     kind: u8,
     x: f32,
     y: f32,
@@ -335,8 +335,8 @@ pub extern "C" fn slint_native_instance_pointer_event(
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_key_event(
-    instance: SlintNativeInstance,
+pub extern "C" fn slint_interpreter_instance_key_event(
+    instance: SlintInterpreterInstance,
     text: *const c_char,
     pressed: bool,
 ) {
@@ -353,7 +353,7 @@ pub extern "C" fn slint_native_instance_key_event(
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_get_property(instance: SlintNativeInstance, name: *const c_char) -> *mut c_char {
+pub extern "C" fn slint_interpreter_instance_get_property(instance: SlintInterpreterInstance, name: *const c_char) -> *mut c_char {
     clear_error();
     if instance.0.is_null() || name.is_null() {
         return ptr::null_mut();
@@ -384,15 +384,15 @@ pub extern "C" fn slint_native_instance_get_property(instance: SlintNativeInstan
     }) {
         Ok(ptr) => ptr,
         Err(_) => {
-            set_error("panicked in slint_native_instance_get_property".into());
+            set_error("panicked in slint_interpreter_instance_get_property".into());
             ptr::null_mut()
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_set_property(
-    instance: SlintNativeInstance,
+pub extern "C" fn slint_interpreter_instance_set_property(
+    instance: SlintInterpreterInstance,
     name: *const c_char,
     json: *const c_char,
 ) -> bool {
@@ -427,15 +427,15 @@ pub extern "C" fn slint_native_instance_set_property(
     }) {
         Ok(result) => result,
         Err(_) => {
-            set_error("panicked in slint_native_instance_set_property".into());
+            set_error("panicked in slint_interpreter_instance_set_property".into());
             false
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_invoke(
-    instance: SlintNativeInstance,
+pub extern "C" fn slint_interpreter_instance_invoke(
+    instance: SlintInterpreterInstance,
     name: *const c_char,
     args_json: *const c_char,
 ) -> *mut c_char {
@@ -476,17 +476,17 @@ pub extern "C" fn slint_native_instance_invoke(
     }) {
         Ok(ptr) => ptr,
         Err(_) => {
-            set_error("panicked in slint_native_instance_invoke".into());
+            set_error("panicked in slint_interpreter_instance_invoke".into());
             ptr::null_mut()
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_instance_set_callback(
-    instance: SlintNativeInstance,
+pub extern "C" fn slint_interpreter_instance_set_callback(
+    instance: SlintInterpreterInstance,
     name: *const c_char,
-    cb: SlintNativeCallbackFn,
+    cb: SlintInterpreterCallbackFn,
     user_data: *mut c_void,
 ) -> bool {
     if instance.0.is_null() || name.is_null() {
@@ -522,7 +522,7 @@ pub extern "C" fn slint_native_instance_set_callback(
     }) {
         Ok(result) => result,
         Err(_) => {
-            set_error("Panic in slint_native_instance_set_callback".to_string());
+            set_error("Panic in slint_interpreter_instance_set_callback".to_string());
             false
         }
     }
@@ -531,7 +531,7 @@ pub extern "C" fn slint_native_instance_set_callback(
 // === String memory management ===
 
 #[no_mangle]
-pub extern "C" fn slint_native_string_free(s: *mut c_char) {
+pub extern "C" fn slint_interpreter_string_free(s: *mut c_char) {
     if !s.is_null() {
         let _ = catch_unwind(|| {
             drop(unsafe { CString::from_raw(s) });
@@ -540,7 +540,7 @@ pub extern "C" fn slint_native_string_free(s: *mut c_char) {
 }
 
 #[no_mangle]
-pub extern "C" fn slint_native_last_error() -> *mut c_char {
+pub extern "C" fn slint_interpreter_last_error() -> *mut c_char {
     match get_error() {
         Some(err) => match CString::new(err) {
             Ok(cstr) => cstr.into_raw(),

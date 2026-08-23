@@ -175,7 +175,7 @@ pub extern "C" fn slint_skia_instance_render(instance: *mut c_void) -> bool {
             set_error("null instance");
             return false;
         }
-        // ponytail: GPU surface plumbing is per-platform work; slint_native software path is the working reference
+        // ponytail: GPU surface plumbing is per-platform work; slint_interpreter software path is the working reference
         // See README for architecture plan: WindowAdapter owning i_slint_renderer_skia::SkiaRenderer
         // bound to platform surface (Metal on macOS/iOS, GL/Vulkan on Android/Linux/Windows),
         // frame exported to Flutter as external texture.

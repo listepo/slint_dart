@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:slint_native/slint_native.dart';
+import 'package:slint_interpreter/slint_interpreter.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -16,7 +16,7 @@ void main() {
     }
 
     final source = File(slintPath).readAsStringSync();
-    final engine = NativeSlintEngine();
+    final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
 
     expect(defs, isNotEmpty);
@@ -35,9 +35,9 @@ void main() {
     var slintFile = File(slintPath);
 
     final source = slintFile.readAsStringSync();
-    final engine = NativeSlintEngine();
+    final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate() as NativeSlintComponent;
+    final component = defs.first.instantiate() as InterpreterSlintComponent;
 
     // Set model
     final model = [
@@ -68,9 +68,9 @@ void main() {
     var slintFile = File(slintPath);
 
     final source = slintFile.readAsStringSync();
-    final engine = NativeSlintEngine();
+    final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate() as NativeSlintComponent;
+    final component = defs.first.instantiate() as InterpreterSlintComponent;
 
     final received = <Object?>[];
     component.setCallbackHandler('add-todo', (args) {
@@ -95,9 +95,9 @@ void main() {
     var slintFile = File(slintPath);
 
     final source = slintFile.readAsStringSync();
-    final engine = NativeSlintEngine();
+    final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate() as NativeSlintComponent;
+    final component = defs.first.instantiate() as InterpreterSlintComponent;
 
     final target = component.renderTarget;
     target.resize(400, 600);

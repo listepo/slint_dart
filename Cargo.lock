@@ -3981,6 +3981,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "slint-interpreter-ffi"
+version = "0.1.0"
+dependencies = [
+ "slint",
+ "slint-dart-core",
+ "slint-dart-interpreter",
+]
+
+[[package]]
 name = "slint-introspect"
 version = "0.1.0"
 dependencies = [
@@ -3999,15 +4008,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "spin_on",
-]
-
-[[package]]
-name = "slint-native-ffi"
-version = "0.1.0"
-dependencies = [
- "slint",
- "slint-dart-core",
- "slint-dart-interpreter",
 ]
 
 [[package]]

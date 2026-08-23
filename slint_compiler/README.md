@@ -2,7 +2,7 @@
 
 Generates typed Dart wrappers (`*.g.dart`) from `.slint` files, AOT-compiled
 with `slint-build` — **no slint-interpreter at runtime**. The interpreter
-path (`slint_native`) is untouched and independent.
+path (`slint_interpreter`) is untouched and independent.
 
 ## How it works
 
@@ -24,7 +24,9 @@ foo.slint ──▶ schema┤
   crate in hook scratch space (slint-build codegen of every `lib/**.slint`
   plus generated JSON⇄typed C ABI glue), builds it through slint_build's
   cargo worker, and emits the matching code assets. The user-visible artifact
-  stays Dart-only.
+  stays Dart-only. The hook builds only for release/profile
+  (`linkingEnabled`); debug builds — including `flutter test` — use the
+  `slint_interpreter` package instead and ship no AOT dylib.
 
 ## Usage
 
@@ -32,11 +34,11 @@ foo.slint ──▶ schema┤
 # pubspec.yaml of the app
 dependencies:
   ffi: ^2.1.0        # the generated wrappers use package:ffi
+  hooks: ^2.0.0      # hook/build.dart runs without dev deps
+  slint_compiler: ^0.1.0
 
 dev_dependencies:
   build_runner: ^2.16.0
-  hooks: ^2.0.0
-  slint_compiler: ^0.1.0
 ```
 
 ```dart

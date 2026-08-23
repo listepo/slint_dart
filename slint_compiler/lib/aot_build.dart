@@ -23,6 +23,10 @@ import 'src/rust_glue.dart';
 /// ```
 Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
   if (!input.config.buildCodeAssets) return;
+  // The AOT dylib ships only in release/profile builds; debug builds (incl.
+  // `flutter test`) use the slint_interpreter package. In Flutter,
+  // linkingEnabled == true exactly for the non-debug (AOT) modes.
+  if (!input.config.linkingEnabled) return;
 
   final libDir = Directory.fromUri(input.packageRoot.resolve('lib/'));
   final slintFiles = !libDir.existsSync()

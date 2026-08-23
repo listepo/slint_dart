@@ -1,5 +1,5 @@
 name: todo_example
-description: Todo demo — a Slint UI compiled at runtime and rendered inside Flutter via slint_native.
+description: Todo demo — a Slint UI rendered inside Flutter; interpreter (slint_interpreter) in debug, AOT-compiled (slint_compiler) in release/profile.
 version: 0.1.0
 publish_to: none
 resolution: workspace
@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
   ffi: ^2.1.0
   slint: ^0.1.0
-  slint_native: ^0.1.0
+  slint_interpreter: ^0.1.0
   hooks: ^2.0.0
   slint_compiler: ^0.1.0
 

@@ -4,4 +4,4 @@
 /// implementations backed by Rust's Slint interpreter and MinimalSoftwareWindow.
 library;
 
-export 'src/native_engine.dart';
+export 'src/interpreter_engine.dart';

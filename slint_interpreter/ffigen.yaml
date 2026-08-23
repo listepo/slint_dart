@@ -1,11 +1,11 @@
-name: SlintNativeBindings
-description: Generated FFI bindings for slint-native-ffi. Do not edit.
+name: SlintInterpreterBindings
+description: Generated FFI bindings for slint-interpreter-ffi. Do not edit.
 output: lib/src/bindings.g.dart
 ffi-native:
-  asset-id: 'package:slint_native/src/bindings.g.dart'
+  asset-id: 'package:slint_interpreter/src/bindings.g.dart'
 functions:
   include:
-    - 'slint_native_.*'
+    - 'slint_interpreter_.*'
 globals:
   exclude:
     - '.*'
@@ -20,7 +20,7 @@ unnamed-enums:
     - '.*'
 headers:
   entry-points:
-    - rust/include/slint_native_ffi.h
+    - rust/include/slint_interpreter_ffi.h
 preamble: |
   // dart format off
   // ignore_for_file: type=lint

@@ -1,6 +1,6 @@
 /// Core abstractions for embedding the Slint UI toolkit in Flutter.
 ///
-/// Backend-agnostic: `slint_native` (software renderer) and `slint_skia`
+/// Backend-agnostic: `slint_interpreter` (software renderer) and `slint_skia`
 /// (Skia/GPU renderer) provide the implementations.
 library;
 

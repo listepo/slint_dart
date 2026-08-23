@@ -1,5 +1,5 @@
 [package]
-name = "slint-native-ffi"
+name = "slint-interpreter-ffi"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -9,5 +9,5 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 slint-dart-core = { path = "../../slint/rust" }
-slint-dart-interpreter = { path = "../../slint_interpreter" }
+slint-dart-interpreter = { path = "../interpreter" }
 slint = { version = "1", default-features = false, features = ["compat-1-2", "std", "renderer-software", "software-renderer-systemfonts"] }

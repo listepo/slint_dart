@@ -10,7 +10,7 @@ void main(List<String> args) => build(args, (input, output) async {
         sourceDirs: [
           root.resolve('rust/'),
           root.resolve('../slint/rust/'),
-          root.resolve('../slint_interpreter/'),
+          root.resolve('../slint_interpreter/interpreter/'),
         ],
       );
     });

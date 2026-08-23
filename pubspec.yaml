@@ -8,7 +8,7 @@ workspace:
   - slint
   - slint_build
   - slint_compiler
-  - slint_native
+  - slint_interpreter
   - slint_skia
   - example
 
