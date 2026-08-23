@@ -3,7 +3,7 @@ import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:slint/slint.dart';
+import 'package:slint/slint_core.dart';
 
 import 'bindings.g.dart';
 
@@ -90,6 +90,41 @@ class NativeSlintComponentDefinition implements SlintComponentDefinition {
 
   @override
   String get name => _cachedName;
+
+  String _jsonString(
+    Pointer<Char> Function(SlintNativeDefinitionList, int) fn,
+  ) {
+    if (_disposed) {
+      throw StateError('Component definition is disposed');
+    }
+    final cStr = fn(_list.handle, _index);
+    if (cStr.address == 0) {
+      throw StateError(_getLastError());
+    }
+    final json = cStr.cast<Utf8>().toDartString();
+    slint_native_string_free(cStr.cast());
+    return json;
+  }
+
+  /// Public properties: name → Slint value type
+  /// (Number, String, Bool, Model, Struct, Brush, Image, Void, ...).
+  Map<String, String> properties() {
+    final parsed =
+        jsonDecode(_jsonString(slint_native_definitions_properties_json))
+            as List<Object?>;
+    return {
+      for (final e in parsed.cast<Map<String, Object?>>())
+        e['name'] as String: e['type'] as String,
+    };
+  }
+
+  /// Public callback names.
+  List<String> callbacks() {
+    final parsed =
+        jsonDecode(_jsonString(slint_native_definitions_callbacks_json))
+            as List<Object?>;
+    return parsed.cast<String>();
+  }
 
   @override
   NativeSlintComponent instantiate() {

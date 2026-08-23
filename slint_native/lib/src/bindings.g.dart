@@ -9,6 +9,13 @@
 library;
 
 import 'dart:ffi' as ffi;
+/// Public callback names of definition `index` as a JSON string array.
+/// Free with slint_native_string_free.
+@ffi.Native<ffi.Pointer<ffi.Char> Function(SlintNativeDefinitionList , ffi.Uint32 )>()
+external ffi.Pointer<ffi.Char> slint_native_definitions_callbacks_json(SlintNativeDefinitionList list,
+int index,
+);
+
 @ffi.Native<ffi.Uint32 Function(SlintNativeDefinitionList )>()
 external int slint_native_definitions_count(SlintNativeDefinitionList list,
 );
@@ -19,6 +26,13 @@ external void slint_native_definitions_free(SlintNativeDefinitionList list,
 
 @ffi.Native<ffi.Pointer<ffi.Char> Function(SlintNativeDefinitionList , ffi.Uint32 )>()
 external ffi.Pointer<ffi.Char> slint_native_definitions_name(SlintNativeDefinitionList list,
+int index,
+);
+
+/// Public properties of definition `index` as a JSON array
+/// `[{"name": "...", "type": "..."}]`. Free with slint_native_string_free.
+@ffi.Native<ffi.Pointer<ffi.Char> Function(SlintNativeDefinitionList , ffi.Uint32 )>()
+external ffi.Pointer<ffi.Char> slint_native_definitions_properties_json(SlintNativeDefinitionList list,
 int index,
 );
 

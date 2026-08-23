@@ -64,6 +64,24 @@ impl Definition {
         self.0.name().to_string()
     }
 
+    /// Public properties as a JSON array: `[{"name": "...", "type": "..."}]`.
+    /// `type` is the `Debug` form of `slint_interpreter::ValueType`
+    /// (Number, String, Bool, Model, Struct, Brush, Image, Void, ...).
+    pub fn properties_json(&self) -> String {
+        let props: Vec<JsonValue> = self
+            .0
+            .properties()
+            .map(|(name, ty)| serde_json::json!({"name": name, "type": format!("{:?}", ty)}))
+            .collect();
+        JsonValue::Array(props).to_string()
+    }
+
+    /// Public callback names as a JSON array of strings.
+    pub fn callbacks_json(&self) -> String {
+        let cbs: Vec<JsonValue> = self.0.callbacks().map(JsonValue::String).collect();
+        JsonValue::Array(cbs).to_string()
+    }
+
     /// Instantiate this component definition into a running instance.
     pub fn instantiate(&self) -> Result<Instance, String> {
         self.0
