@@ -1,4 +1,5 @@
 import 'package:slint/slint_core.dart';
+import 'package:slint_generator/runtime.dart';
 
 import 'interpreter_engine.dart';
 
@@ -8,7 +9,7 @@ import 'interpreter_engine.dart';
 /// ```dart
 /// final app = await TodoApp.create(SlintInterpreterFactory());
 /// ```
-class SlintInterpreterFactory implements SlintComponentFactory {
+final class SlintInterpreterFactory extends SlintComponentFactory {
   /// Uses [engine] when given — otherwise creates (and owns) one.
   SlintInterpreterFactory([InterpreterSlintEngine? engine])
       : _engine = engine ?? InterpreterSlintEngine(),

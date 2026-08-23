@@ -3,16 +3,24 @@
 library;
 
 import 'package:slint/slint_core.dart';
+import 'package:slint_generator/runtime.dart';
+import 'package:slint_interpreter/slint_interpreter.dart';
+
+import 'todo.aot.g.dart' as aot;
 
 /// `todo.slint`, embedded so interpreter backends can compile it at runtime.
 const _source = "import { Button, CheckBox, LineEdit, ListView, VerticalBox, HorizontalBox } from \"std-widgets.slint\";\n\nexport struct TodoItem {\n    title: string,\n    checked: bool,\n}\n\nexport component TodoApp inherits Window {\n    preferred-width: 400px;\n    preferred-height: 600px;\n    title: \"Slint ♥ Flutter — Todo\";\n\n    // Host (Dart) owns the list; this default renders before the host syncs.\n    in property <[TodoItem]> todo-model: [\n        { title: \"Wire Slint into Flutter\", checked: true },\n        { title: \"Render this list\", checked: false },\n    ];\n\n    callback add-todo(string);\n    callback toggle-todo(int, bool);\n    callback remove-done();\n\n    VerticalBox {\n        HorizontalBox {\n            padding: 0;\n            edit := LineEdit {\n                placeholder-text: \"What needs to be done?\";\n                accepted(text) => { root.add-todo(text); self.text = \"\"; }\n            }\n            Button {\n                text: \"Add\";\n                primary: true;\n                clicked => { root.add-todo(edit.text); edit.text = \"\"; }\n            }\n        }\n        ListView {\n            for item[index] in root.todo-model: HorizontalBox {\n                padding: 0;\n                CheckBox {\n                    text: item.title;\n                    checked: item.checked;\n                    toggled => { root.toggle-todo(index, self.checked); }\n                }\n            }\n        }\n        Button {\n            text: \"Remove done items\";\n            clicked => { root.remove-done(); }\n        }\n    }\n}\n";
 
+/// True in release and profile builds — the same condition the build hooks
+/// use (`linkingEnabled`) to bundle the AOT dylib instead of the interpreter,
+/// spelled without a Flutter import.
+const _useCompiled = bool.fromEnvironment('dart.vm.product') ||
+    bool.fromEnvironment('dart.vm.profile');
+
 /// Typed wrapper for the `TodoApp` component of `todo.slint`.
 ///
-/// Create it through the factory of the backend you want:
-///
 /// ```dart
-/// final app = await TodoApp.create(SlintInterpreterFactory());
+/// final app = await TodoApp.create();
 /// ```
 class TodoApp {
   TodoApp(this.component);
@@ -23,9 +31,16 @@ class TodoApp {
   /// The `.slint` source this wrapper was generated from.
   static const slintSource = _source;
 
-  /// Instantiates `TodoApp` through [factory].
-  static Future<TodoApp> create(SlintComponentFactory factory) async =>
-      TodoApp(await factory.instantiate(_source, componentName));
+  /// Backend [create] uses when given none: the AOT-compiled component in release and profile builds, the
+  /// interpreter in debug — matching the dylib the build actually bundles.
+  ///
+  /// Created once, on first use, and shared by every instance.
+  static final SlintComponentFactory defaultFactory = _useCompiled ? aot.todoAppFactory : SlintInterpreterFactory();
+
+  /// Instantiates `TodoApp` through [factory], or [defaultFactory].
+  static Future<TodoApp> create([SlintComponentFactory? factory]) async =>
+      TodoApp(await (factory ?? defaultFactory)
+          .instantiate(_source, componentName));
 
   /// The backing instance — use it for untyped property/callback access.
   final SlintSoftwareComponent component;

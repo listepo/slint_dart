@@ -58,15 +58,20 @@ Future<void> main(List<String> args) async {
   final schema = await introspectSlint(input.absolute.path);
   final sourceName = input.uri.pathSegments.last;
 
+  final aotOutput = File(
+    output.path.replaceFirst(RegExp(r'(\.g)?\.dart$'), '.aot.g.dart'),
+  );
+
   output.writeAsStringSync(generateWrapperLibrary(
     schema,
     sourceName: sourceName,
     slintSource: input.readAsStringSync(),
+    // The AOT backend is always written next to the wrapper here; the
+    // interpreter is only a default when the package can import it.
+    aotLibrary: aotOutput.uri.pathSegments.last,
+    interpreter: runtimeDependencies(pubspec).contains('slint_interpreter'),
   ));
 
-  final aotOutput = File(
-    output.path.replaceFirst(RegExp(r'(\.g)?\.dart$'), '.aot.g.dart'),
-  );
   aotOutput.writeAsStringSync(generateDartFromSchema(
     schema,
     packageName: packageName,

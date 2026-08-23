@@ -11,6 +11,15 @@ void main() {
   setUp(() => factory = SlintInterpreterFactory());
   tearDown(() => factory.dispose());
 
+  test('create() defaults to the interpreter in debug builds', () async {
+    // No factory passed: the generated defaultFactory follows the build mode,
+    // and `flutter test` is always debug. Do not dispose it — it is shared.
+    expect(TodoApp.defaultFactory, isA<SlintInterpreterFactory>());
+    final app = await TodoApp.create();
+    expect(app.component, isA<InterpreterSlintComponent>());
+    app.dispose();
+  });
+
   test('creates TodoApp from the embedded source', () async {
     final app = await TodoApp.create(factory);
     expect(app.component, isA<InterpreterSlintComponent>());

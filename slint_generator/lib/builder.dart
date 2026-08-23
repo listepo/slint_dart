@@ -22,6 +22,13 @@ class _SlintBuilder implements Builder {
     final input = buildStep.inputId;
     final source = await buildStep.readAsString(input);
 
+    // Which backends the wrapper can default to depends on what the package
+    // actually depends on. Reading the pubspec through the build step keeps it
+    // a tracked input, so adding a backend rebuilds the wrappers.
+    final deps = runtimeDependencies(
+      await buildStep.readAsString(AssetId(input.package, 'pubspec.yaml')),
+    );
+
     // build_runner runs from the package root; resolve the introspect tool
     // through the package config (Isolate.resolvePackageUri is unavailable in
     // the AOT-compiled build script).
@@ -40,6 +47,10 @@ class _SlintBuilder implements Builder {
         schema,
         sourceName: input.pathSegments.last,
         slintSource: source,
+        aotLibrary: deps.contains('slint_compiler')
+            ? input.changeExtension('.aot.g.dart').pathSegments.last
+            : null,
+        interpreter: deps.contains('slint_interpreter'),
       ),
     );
   }

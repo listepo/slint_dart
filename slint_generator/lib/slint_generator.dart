@@ -7,6 +7,7 @@
 library;
 
 export 'src/emitter.dart';
+export 'src/factory.dart';
 export 'src/introspect.dart';
 export 'src/names.dart';
 export 'src/package_config.dart';

@@ -3,239 +3,15 @@
 @ffi.DefaultAsset('package:todo_example/todo.aot.g.dart')
 library;
 
-import 'dart:convert';
 import 'dart:ffi' as ffi;
-import 'dart:typed_data';
 
-import 'package:ffi/ffi.dart';
-import 'package:slint/slint_core.dart';
-
-typedef _CallbackNative = ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>);
+import 'package:slint_compiler/runtime.dart';
 
 @ffi.Native<ffi.Pointer<ffi.Char> Function()>(symbol: 'slint_aot_last_error')
 external ffi.Pointer<ffi.Char> _lastError();
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_string_free')
 external void _stringFree(ffi.Pointer<ffi.Char> s);
-
-String _takeError() {
-  final p = _lastError();
-  if (p.address == 0) return 'unknown error';
-  return _readString(p);
-}
-
-String _readString(ffi.Pointer<ffi.Char> p) {
-  final s = p.cast<Utf8>().toDartString();
-  _stringFree(p);
-  return s;
-}
-
-Object? _decode(String json) {
-  if (json == 'null') return null;
-  try {
-    return jsonDecode(json);
-  } catch (_) {
-    return json;
-  }
-}
-
-class _Ops {
-  const _Ops({
-    required this.free,
-    required this.setSize,
-    required this.render,
-    required this.pointerEvent,
-    required this.keyEvent,
-    required this.getProp,
-    required this.setProp,
-    required this.invoke,
-    required this.setCallback,
-  });
-
-  final void Function(ffi.Pointer<ffi.Void>) free;
-  final void Function(ffi.Pointer<ffi.Void>, int, int) setSize;
-  final bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int) render;
-  final void Function(ffi.Pointer<ffi.Void>, int, double, double, int, double, double) pointerEvent;
-  final void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, bool) keyEvent;
-  final ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>) getProp;
-  final bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>) setProp;
-  final ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>) invoke;
-  final bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.NativeFunction<_CallbackNative>>, ffi.Pointer<ffi.Void>) setCallback;
-}
-
-class _AotComponent implements SlintSoftwareComponent {
-  _AotComponent(this._handle, this._ops);
-
-  final ffi.Pointer<ffi.Void> _handle;
-  final _Ops _ops;
-  final Map<String, ffi.NativeCallable<_CallbackNative>> _callbacks = {};
-  bool _disposed = false;
-
-  @override
-  late final _AotRenderTarget renderTarget = _AotRenderTarget(this);
-
-  @override
-  Object? getProperty(String name) {
-    final nameC = name.toNativeUtf8();
-    try {
-      final p = _ops.getProp(_handle, nameC.cast());
-      if (p.address == 0) throw StateError(_takeError());
-      return _decode(_readString(p));
-    } finally {
-      malloc.free(nameC);
-    }
-  }
-
-  @override
-  void setProperty(String name, Object? value) {
-    final nameC = name.toNativeUtf8();
-    final jsonC = jsonEncode(value).toNativeUtf8();
-    try {
-      if (!_ops.setProp(_handle, nameC.cast(), jsonC.cast())) {
-        throw StateError(_takeError());
-      }
-    } finally {
-      malloc.free(nameC);
-      malloc.free(jsonC);
-    }
-  }
-
-  @override
-  void setCallbackHandler(String name, SlintCallbackHandler handler) {
-    // Create the trampoline first; only close the old one after native code
-    // has the new pointer, so a failed set cannot leave a dangling fn.
-    final callable = ffi.NativeCallable<_CallbackNative>.isolateLocal(
-      (ffi.Pointer<ffi.Void> userData, ffi.Pointer<ffi.Char> argsJson) {
-        try {
-          final args = jsonDecode(argsJson.cast<Utf8>().toDartString()) as List<dynamic>;
-          // Handler return values ignored; Slint side gets the default value.
-          handler(args);
-        } catch (_) {}
-      },
-    );
-    final nameC = name.toNativeUtf8();
-    try {
-      if (!_ops.setCallback(_handle, nameC.cast(), callable.nativeFunction, ffi.nullptr)) {
-        callable.close();
-        throw StateError(_takeError());
-      }
-    } finally {
-      malloc.free(nameC);
-    }
-    _callbacks.remove(name)?.close();
-    _callbacks[name] = callable;
-  }
-
-  @override
-  Object? invokeCallback(String name, List<Object?> arguments) {
-    final nameC = name.toNativeUtf8();
-    final argsC = jsonEncode(arguments).toNativeUtf8();
-    try {
-      final p = _ops.invoke(_handle, nameC.cast(), argsC.cast());
-      if (p.address == 0) throw StateError(_takeError());
-      return _decode(_readString(p));
-    } finally {
-      malloc.free(nameC);
-      malloc.free(argsC);
-    }
-  }
-
-  @override
-  void dispose() {
-    if (_disposed) return;
-    _disposed = true;
-    _ops.free(_handle);
-    for (final callable in _callbacks.values) {
-      callable.close();
-    }
-    _callbacks.clear();
-    renderTarget.dispose();
-  }
-}
-
-class _AotRenderTarget implements SlintSoftwareRenderTarget {
-  _AotRenderTarget(this._component) {
-    _allocateBuffer();
-  }
-
-  final _AotComponent _component;
-  ffi.Pointer<ffi.Uint8> _pixelBuffer = ffi.nullptr;
-  Uint8List _pixels = Uint8List(0);
-  int _width = 800;
-  int _height = 600;
-  bool _disposed = false;
-
-  void _allocateBuffer() {
-    final bufferSize = _width * _height * 4;
-    _pixelBuffer = malloc<ffi.Uint8>(bufferSize);
-    _pixels = _pixelBuffer.asTypedList(bufferSize);
-  }
-
-  @override
-  SlintComponent get component => _component;
-
-  @override
-  int get width => _width;
-
-  @override
-  int get height => _height;
-
-  @override
-  void resize(int width, int height) {
-    if (_disposed || (width == _width && height == _height)) return;
-    if (_pixelBuffer.address != 0) {
-      malloc.free(_pixelBuffer);
-      _pixelBuffer = ffi.nullptr;
-    }
-    _width = width;
-    _height = height;
-    _allocateBuffer();
-    _component._ops.setSize(_component._handle, width, height);
-  }
-
-  @override
-  bool render() {
-    if (_disposed || _pixelBuffer.address == 0) return false;
-    return _component._ops.render(_component._handle, _pixelBuffer, _pixels.length);
-  }
-
-  @override
-  void dispatchPointerEvent(SlintPointerEvent event) {
-    _component._ops.pointerEvent(
-      _component._handle,
-      event.kind.index,
-      event.x,
-      event.y,
-      event.button.index,
-      event.scrollDeltaX,
-      event.scrollDeltaY,
-    );
-  }
-
-  @override
-  void dispatchKeyEvent(SlintKeyEvent event) {
-    final textC = event.text.toNativeUtf8();
-    try {
-      _component._ops.keyEvent(_component._handle, textC.cast(), event.pressed);
-    } finally {
-      malloc.free(textC);
-    }
-  }
-
-  @override
-  Uint8List get pixels => _pixels;
-
-  @override
-  void dispose() {
-    if (_disposed) return;
-    _disposed = true;
-    if (_pixelBuffer.address != 0) {
-      malloc.free(_pixelBuffer);
-      _pixelBuffer = ffi.nullptr;
-      _pixels = Uint8List(0);
-    }
-  }
-}
 
 // === TodoApp ===
 
@@ -266,43 +42,28 @@ external bool _todoAppSetProperty(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.
 @ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_todo_app_invoke')
 external ffi.Pointer<ffi.Char> _todoAppInvoke(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.Char> argsJson);
 
-@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.NativeFunction<_CallbackNative>>, ffi.Pointer<ffi.Void>)>(symbol: 'slint_aot_todo_app_set_callback')
-external bool _todoAppSetCallback(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.NativeFunction<_CallbackNative>> cb, ffi.Pointer<ffi.Void> userData);
-
-final _Ops _todoAppOps = _Ops(
-  free: _todoAppFree,
-  setSize: _todoAppSetSize,
-  render: _todoAppRender,
-  pointerEvent: _todoAppPointerEvent,
-  keyEvent: _todoAppKeyEvent,
-  getProp: _todoAppGetProperty,
-  setProp: _todoAppSetProperty,
-  invoke: _todoAppInvoke,
-  setCallback: _todoAppSetCallback,
-);
+@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>>, ffi.Pointer<ffi.Void>)>(symbol: 'slint_aot_todo_app_set_callback')
+external bool _todoAppSetCallback(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>> cb, ffi.Pointer<ffi.Void> userData);
 
 /// AOT backend for `TodoApp`: instantiates the slint-build compiled component
 /// from the app's `slint-dart-aot` code asset, no interpreter involved.
 ///
-/// Pass it to the generated wrapper: `await TodoApp.create(todoAppFactory)`.
-const todoAppFactory = _TodoAppFactory();
-
-class _TodoAppFactory implements SlintComponentFactory {
-  const _TodoAppFactory();
-
-  @override
-  Future<SlintSoftwareComponent> instantiate(String source, String componentName) async {
-    if (componentName != 'TodoApp') {
-      throw ArgumentError.value(
-        componentName,
-        'componentName',
-        'this factory only instantiates TodoApp',
-      );
-    }
-    final handle = _todoAppNew();
-    if (handle.address == 0) {
-      throw StateError(_takeError());
-    }
-    return _AotComponent(handle, _todoAppOps);
-  }
-}
+/// Pass it to the generated wrapper: `await TodoApp.create(todoAppFactory)`
+/// — or just `await TodoApp.create()`, which defaults to it in release builds.
+final todoAppFactory = SlintCompilerFactory(
+  componentName: 'TodoApp',
+  ops: SlintComponentOps(
+    lastError: _lastError,
+    stringFree: _stringFree,
+    create: _todoAppNew,
+    free: _todoAppFree,
+    setSize: _todoAppSetSize,
+    render: _todoAppRender,
+    pointerEvent: _todoAppPointerEvent,
+    keyEvent: _todoAppKeyEvent,
+    getProperty: _todoAppGetProperty,
+    setProperty: _todoAppSetProperty,
+    invoke: _todoAppInvoke,
+    setCallback: _todoAppSetCallback,
+  ),
+);

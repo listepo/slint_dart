@@ -1,5 +1,19 @@
 import 'dart:io';
 
+import 'package:yaml/yaml.dart';
+
+/// The regular (non-dev) dependencies declared in [pubspecYaml].
+///
+/// Codegen consults this to decide which backends a package can actually
+/// import at runtime — a dev dependency would not survive into an app build.
+Set<String> runtimeDependencies(String pubspecYaml) {
+  final doc = loadYaml(pubspecYaml);
+  final deps = doc is YamlMap ? doc['dependencies'] : null;
+  return deps is YamlMap
+      ? {for (final key in deps.keys) '$key'}
+      : const <String>{};
+}
+
 /// Locates the `.dart_tool/package_config.json` governing [from], walking up
 /// so that members of a pub workspace find the shared config at the workspace
 /// root rather than expecting one in their own directory.

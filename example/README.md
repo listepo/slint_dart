@@ -22,15 +22,16 @@ Two files per `.slint`, both regenerated after editing `lib/todo.slint`:
 
 ## Backends
 
-`main.dart` picks the factory by build mode, and only the matching dylib is
-bundled (the hooks read `linkingEnabled`, which is true exactly for the
-non-debug modes):
+`main.dart` names no backend at all:
 
 ```dart
-final app = await TodoApp.create(
-  kDebugMode ? SlintInterpreterFactory() : aot.todoAppFactory,
-);
+final app = await TodoApp.create();
 ```
+
+The generated `TodoApp.defaultFactory` picks one by build mode, matching the
+dylib that actually ships (the hooks read `linkingEnabled`, true exactly for
+the non-debug modes). Pass a factory explicitly to override it — that is what
+the tests do.
 
 ### Interpreter — debug builds
 

@@ -13,6 +13,11 @@ String pascalCase(String kebab) => kebab
     .map((p) => p[0].toUpperCase() + p.substring(1))
     .join();
 
+/// `TodoApp` → `todoAppFactory`: the name `slint_compiler` gives the AOT
+/// backend factory it generates, and that the typed wrapper refers to.
+String aotFactoryName(String pascal) =>
+    '${camelCase(snakeFromPascal(pascal).replaceAll('_', '-'))}Factory';
+
 /// Slint name → Rust identifier, mirroring i-slint-compiler's `ident()`:
 /// dashes become underscores.
 String rustIdent(String slintName) => slintName.replaceAll('-', '_');

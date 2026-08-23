@@ -1,15 +1,11 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:slint/slint.dart';
-import 'package:slint_interpreter/slint_interpreter.dart';
 
-import 'todo.aot.g.dart' as aot;
 import 'todo.g.dart';
 
-/// Backend follows the build mode (mirrors the hooks: debug bundles only the
-/// interpreter dylib, release/profile only the AOT dylib). Either way the
-/// typed `TodoApp` API generated from `todo.slint` is the same.
-const useCompiled = !kDebugMode;
+// The app never names a backend: `TodoApp.create()` uses the generated
+// `defaultFactory`, which follows the build mode exactly like the hooks that
+// decide which dylib ships — interpreter in debug, AOT in release/profile.
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,7 +34,6 @@ class TodoPage extends StatefulWidget {
 
 class _TodoPageState extends State<TodoPage> {
   TodoApp? _app;
-  SlintInterpreterFactory? _interpreter;
   Object? _loadError;
   final List<Map<String, Object?>> _todos = [
     {'title': 'Wire Slint into Flutter', 'checked': true},
@@ -54,16 +49,9 @@ class _TodoPageState extends State<TodoPage> {
 
   Future<void> _load() async {
     try {
-      final SlintComponentFactory factory;
-      if (useCompiled) {
-        factory = aot.todoAppFactory;
-      } else {
-        factory = _interpreter = SlintInterpreterFactory();
-      }
-      final app = await TodoApp.create(factory);
+      final app = await TodoApp.create();
       if (!mounted) {
         app.dispose();
-        _interpreter?.dispose();
         return;
       }
       _app = app;
@@ -111,8 +99,9 @@ class _TodoPageState extends State<TodoPage> {
 
   @override
   void dispose() {
+    // The interpreter engine behind TodoApp.defaultFactory is process-wide and
+    // shared, so it outlives this widget deliberately.
     _app?.dispose();
-    _interpreter?.dispose();
     super.dispose();
   }
 
@@ -123,7 +112,7 @@ class _TodoPageState extends State<TodoPage> {
       appBar: AppBar(
         title: Text(
           '$_openCount open / ${_todos.length} total'
-          ' — ${useCompiled ? 'AOT' : 'interpreter'}',
+          ' — ${TodoApp.defaultFactory.runtimeType}',
         ),
       ),
       body: _loadError != null
