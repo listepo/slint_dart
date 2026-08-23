@@ -2,6 +2,7 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
+    - lib/src/bindings.g.dart
     - build/**
     - android/**
     - ios/**

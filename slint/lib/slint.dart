@@ -8,3 +8,4 @@ export 'src/component.dart';
 export 'src/engine.dart';
 export 'src/events.dart';
 export 'src/render_target.dart';
+export 'src/slint_view.dart';

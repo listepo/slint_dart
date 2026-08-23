@@ -1601,6 +1601,23 @@ late final _slint_native_instance_renderPtr = _lookup<
     ffi.NativeFunction<ffi.Bool Function(SlintNativeInstance , ffi.Pointer<ffi.Uint8> , ffi.UintPtr )>>('slint_native_instance_render');
 late final _slint_native_instance_render = _slint_native_instance_renderPtr.asFunction<bool Function(SlintNativeInstance , ffi.Pointer<ffi.Uint8> , int )>();
 
+bool slint_native_instance_set_callback(SlintNativeInstance instance,
+ffi.Pointer<ffi.Char> name,
+SlintNativeCallbackFn cb,
+ffi.Pointer<ffi.Void> user_data,
+) {
+  
+  return _slint_native_instance_set_callback(instance,
+name,
+cb,
+user_data,
+);
+}
+
+late final _slint_native_instance_set_callbackPtr = _lookup<
+    ffi.NativeFunction<ffi.Bool Function(SlintNativeInstance , ffi.Pointer<ffi.Char> , SlintNativeCallbackFn , ffi.Pointer<ffi.Void> )>>('slint_native_instance_set_callback');
+late final _slint_native_instance_set_callback = _slint_native_instance_set_callbackPtr.asFunction<bool Function(SlintNativeInstance , ffi.Pointer<ffi.Char> , SlintNativeCallbackFn , ffi.Pointer<ffi.Void> )>();
+
 bool slint_native_instance_set_property(SlintNativeInstance instance,
 ffi.Pointer<ffi.Char> name,
 ffi.Pointer<ffi.Char> json,
@@ -2953,6 +2970,9 @@ const int SV_RESETHAND = 4;
 
 const int SV_SIGINFO = 64;
 
+typedef SlintNativeCallbackFn = ffi.Pointer<ffi.NativeFunction<SlintNativeCallbackFnFunction>>;
+typedef SlintNativeCallbackFnFunction = ffi.Void Function(ffi.Pointer<ffi.Void> user_data, ffi.Pointer<ffi.Char> args_json);
+typedef DartSlintNativeCallbackFnFunction = void Function(ffi.Pointer<ffi.Void> user_data, ffi.Pointer<ffi.Char> args_json);
 typedef SlintNativeDefinitionList = ffi.Pointer<ffi.Void>;
 typedef SlintNativeEngine = ffi.Pointer<ffi.Void>;
 typedef SlintNativeInstance = ffi.Pointer<ffi.Void>;

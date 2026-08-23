@@ -7,15 +7,36 @@ use std::ptr;
 use std::rc::Rc;
 
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType, PremultipliedRgbaColor};
+use slint::ComponentHandle;
 use slint::PhysicalSize;
-use slint_dart_core::{Definition, Engine, Instance};
+use slint_dart_interpreter::{Definition, Engine, Instance};
 
 thread_local! {
     static LAST_ERROR: RefCell<Option<String>> = RefCell::new(None);
+    // Window created by the platform for the most recent instantiation.
+    // ponytail: single-slot handoff; registry when multiple views needed
+    static NEXT_WINDOW: RefCell<Option<Rc<MinimalSoftwareWindow>>> = RefCell::new(None);
 }
 
 fn set_error(msg: String) {
     LAST_ERROR.with(|e| *e.borrow_mut() = Some(msg));
+}
+
+struct FlutterSoftwarePlatform;
+
+impl slint::platform::Platform for FlutterSoftwarePlatform {
+    fn create_window_adapter(
+        &self,
+    ) -> Result<Rc<dyn slint::platform::WindowAdapter>, slint::PlatformError> {
+        let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+        NEXT_WINDOW.with(|slot| *slot.borrow_mut() = Some(window.clone()));
+        Ok(window)
+    }
+}
+
+fn ensure_platform_initialized() {
+    // Err means a platform is already set — fine.
+    let _ = slint::platform::set_platform(Box::new(FlutterSoftwarePlatform));
 }
 
 fn clear_error() {
@@ -170,6 +191,7 @@ pub extern "C" fn slint_native_definitions_free(list: SlintNativeDefinitionList)
 #[repr(transparent)]
 pub struct SlintNativeInstance(*mut c_void);
 
+pub type SlintNativeCallbackFn = extern "C" fn(user_data: *mut c_void, args_json: *const c_char);
 struct InstanceHandle {
     core: Instance,
     window: Rc<MinimalSoftwareWindow>,
@@ -184,6 +206,7 @@ pub extern "C" fn slint_native_instantiate(
     if list.0.is_null() {
         return SlintNativeInstance(ptr::null_mut());
     }
+    ensure_platform_initialized();
     match catch_unwind(|| {
         let defs = unsafe { &*(list.0 as *const Vec<Definition>) };
         if (index as usize) >= defs.len() {
@@ -199,7 +222,19 @@ pub extern "C" fn slint_native_instantiate(
             }
         };
 
-        let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+        // show() forces window creation through FlutterSoftwarePlatform,
+        // which parks the MinimalSoftwareWindow in NEXT_WINDOW.
+        if let Err(e) = instance.0.show() {
+            set_error(format!("{:?}", e));
+            return ptr::null_mut();
+        }
+        let window = match NEXT_WINDOW.with(|slot| slot.borrow_mut().take()) {
+            Some(w) => w,
+            None => {
+                set_error("platform did not create a window".into());
+                return ptr::null_mut();
+            }
+        };
 
         let handle = InstanceHandle {
             core: instance,
@@ -443,6 +478,52 @@ pub extern "C" fn slint_native_instance_invoke(
         Err(_) => {
             set_error("panicked in slint_native_instance_invoke".into());
             ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn slint_native_instance_set_callback(
+    instance: SlintNativeInstance,
+    name: *const c_char,
+    cb: SlintNativeCallbackFn,
+    user_data: *mut c_void,
+) -> bool {
+    if instance.0.is_null() || name.is_null() {
+        return false;
+    }
+    match catch_unwind(|| {
+        let name_str = match unsafe { CStr::from_ptr(name) }.to_str() {
+            Ok(s) => s,
+            Err(_) => {
+                set_error("Invalid callback name: not valid UTF-8".to_string());
+                return false;
+            }
+        };
+        let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
+
+        // Capture user_data and callback in closure; engine is single-threaded
+        let callback_box: Box<dyn Fn(&str) + 'static> = Box::new(move |json: &str| {
+            if let Ok(cstr) = CString::new(json) {
+                cb(user_data, cstr.as_ptr());
+            }
+        });
+
+        match handle.core.set_callback_json(name_str, callback_box) {
+            Ok(_) => {
+                clear_error();
+                true
+            }
+            Err(e) => {
+                set_error(e);
+                false
+            }
+        }
+    }) {
+        Ok(result) => result,
+        Err(_) => {
+            set_error("Panic in slint_native_instance_set_callback".to_string());
+            false
         }
     }
 }

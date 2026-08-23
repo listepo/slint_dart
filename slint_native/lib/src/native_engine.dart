@@ -8,7 +8,27 @@ import 'package:slint/slint.dart';
 import 'bindings.g.dart';
 import 'library.dart';
 
-late final _bindings = SlintNativeBindings(openSlintNativeLibrary());
+typedef _NativeSlintCallbackFn = Void Function(Pointer<Void>, Pointer<Char>);
+
+final _bindings = SlintNativeBindings(openSlintNativeLibrary());
+
+class _NativeDefList {
+  _NativeDefList(this.handle);
+
+  final SlintNativeDefinitionList handle;
+  int _refs = 0;
+  bool _freed = false;
+
+  void retain() => _refs++;
+
+  void release() {
+    _refs--;
+    if (_refs <= 0 && !_freed) {
+      _freed = true;
+      _bindings.slint_native_definitions_free(handle);
+    }
+  }
+}
 
 class NativeSlintEngine implements SlintEngine {
   late final _handle = _bindings.slint_native_engine_new();
@@ -30,20 +50,15 @@ class NativeSlintEngine implements SlintEngine {
       }
 
       final count = _bindings.slint_native_definitions_count(defList);
-      final defs = <SlintComponentDefinition>[];
-
-      for (var i = 0; i < count; i++) {
-        final nameCStr = _bindings.slint_native_definitions_name(defList, i);
-        if (nameCStr.address == 0) {
-          throw StateError(_getLastError());
-        }
-        final name = nameCStr.cast<Utf8>().toDartString();
-        _bindings.slint_native_string_free(nameCStr.cast());
-
-        defs.add(NativeSlintComponentDefinition(this, defList, i));
+      if (count == 0) {
+        _bindings.slint_native_definitions_free(defList);
+        return const [];
       }
 
-      return defs;
+      final owner = _NativeDefList(defList);
+      return [
+        for (var i = 0; i < count; i++) NativeSlintComponentDefinition._(owner, i),
+      ];
     } finally {
       malloc.free(sourceCStr);
       if (pathCStr.address != 0) {
@@ -59,11 +74,11 @@ class NativeSlintEngine implements SlintEngine {
 }
 
 class NativeSlintComponentDefinition implements SlintComponentDefinition {
-  final NativeSlintEngine _engine;
-  final _defListHandle;
+  final _NativeDefList _list;
   final int _index;
+  bool _disposed = false;
   late final String _cachedName = () {
-    final nameCStr = _bindings.slint_native_definitions_name(_defListHandle, _index);
+    final nameCStr = _bindings.slint_native_definitions_name(_list.handle, _index);
     if (nameCStr.address == 0) {
       throw StateError(_getLastError());
     }
@@ -72,14 +87,19 @@ class NativeSlintComponentDefinition implements SlintComponentDefinition {
     return name;
   }();
 
-  NativeSlintComponentDefinition(this._engine, this._defListHandle, this._index);
+  NativeSlintComponentDefinition._(this._list, this._index) {
+    _list.retain();
+  }
 
   @override
   String get name => _cachedName;
 
   @override
   NativeSlintComponent instantiate() {
-    final instHandle = _bindings.slint_native_instantiate(_defListHandle, _index);
+    if (_disposed) {
+      throw StateError('Component definition is disposed');
+    }
+    final instHandle = _bindings.slint_native_instantiate(_list.handle, _index);
     if (instHandle.address == 0) {
       throw StateError(_getLastError());
     }
@@ -88,13 +108,19 @@ class NativeSlintComponentDefinition implements SlintComponentDefinition {
 
   @override
   void dispose() {
-    // definitions list is freed after all defs retrieved
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    _list.release();
   }
 }
 
 class NativeSlintComponent implements SlintComponent {
-  final _instanceHandle;
+  final SlintNativeInstance _instanceHandle;
   late final NativeSoftwareRenderTarget _renderTarget = NativeSoftwareRenderTarget(this);
+  final Map<String, NativeCallable<_NativeSlintCallbackFn>> _callbacks = {};
+  bool _disposed = false;
 
   NativeSlintComponent(this._instanceHandle);
 
@@ -140,7 +166,39 @@ class NativeSlintComponent implements SlintComponent {
 
   @override
   void setCallbackHandler(String name, SlintCallbackHandler handler) {
-    throw UnimplementedError('Rust→Dart callbacks: wire via NativeCallable');
+    // Create the trampoline first; only close the old one after rust has
+    // the new pointer, so a failed set_callback cannot leave a dangling fn.
+    final callable = NativeCallable<_NativeSlintCallbackFn>.isolateLocal(
+      (Pointer<Void> userData, Pointer<Char> argsJsonPtr) {
+        final argsJson = argsJsonPtr.cast<Utf8>().toDartString();
+        try {
+          final args = jsonDecode(argsJson) as List<dynamic>;
+          // ponytail: handler return values ignored; Slint side gets Void
+          handler(args);
+        } catch (_) {
+          // Silently ignore parsing errors
+        }
+      },
+    );
+
+    final nameCStr = name.toNativeUtf8();
+    try {
+      final success = _bindings.slint_native_instance_set_callback(
+        _instanceHandle,
+        nameCStr.cast(),
+        callable.nativeFunction,
+        nullptr,
+      );
+      if (!success) {
+        callable.close();
+        throw StateError(_getLastError());
+      }
+    } finally {
+      malloc.free(nameCStr);
+    }
+
+    _callbacks.remove(name)?.close();
+    _callbacks[name] = callable;
   }
 
   @override
@@ -169,17 +227,26 @@ class NativeSlintComponent implements SlintComponent {
 
   @override
   void dispose() {
-    _renderTarget.dispose();
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
     _bindings.slint_native_instance_free(_instanceHandle);
+    for (final callable in _callbacks.values) {
+      callable.close();
+    }
+    _callbacks.clear();
+    _renderTarget.dispose();
   }
 }
 
 class NativeSoftwareRenderTarget implements SlintSoftwareRenderTarget {
   final NativeSlintComponent _component;
-  late Pointer<Uint8> _pixelBuffer;
-  late Uint8List _pixels;
+  Pointer<Uint8> _pixelBuffer = nullptr;
+  Uint8List _pixels = Uint8List(0);
   int _width = 800;
   int _height = 600;
+  bool _disposed = false;
 
   NativeSoftwareRenderTarget(this._component) {
     _allocateBuffer();
@@ -202,10 +269,13 @@ class NativeSoftwareRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   void resize(int width, int height) {
-    if (width == _width && height == _height) {
+    if (_disposed || (width == _width && height == _height)) {
       return;
     }
-    malloc.free(_pixelBuffer);
+    if (_pixelBuffer.address != 0) {
+      malloc.free(_pixelBuffer);
+      _pixelBuffer = nullptr;
+    }
     _width = width;
     _height = height;
     _allocateBuffer();
@@ -214,6 +284,9 @@ class NativeSoftwareRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   bool render() {
+    if (_disposed || _pixelBuffer.address == 0) {
+      return false;
+    }
     return _bindings.slint_native_instance_render(
       _component._instanceHandle,
       _pixelBuffer.cast(),
@@ -253,7 +326,15 @@ class NativeSoftwareRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   void dispose() {
-    malloc.free(_pixelBuffer);
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    if (_pixelBuffer.address != 0) {
+      malloc.free(_pixelBuffer);
+      _pixelBuffer = nullptr;
+      _pixels = Uint8List(0);
+    }
   }
 }
 

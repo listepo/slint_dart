@@ -2,7 +2,7 @@
 ///
 /// Provides software-rendered [SlintEngine], [SlintComponent], and [SlintSoftwareRenderTarget]
 /// implementations backed by Rust's Slint interpreter and MinimalSoftwareWindow.
-library slint_native;
+library;
 
 export 'src/library.dart';
 export 'src/native_engine.dart';

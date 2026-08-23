@@ -3,7 +3,7 @@ use std::ffi::{CStr, CString};
 use std::panic;
 use std::ptr;
 use std::os::raw::c_char;
-use slint_dart_core::{Engine as DartEngine, Definition, Instance};
+use slint_dart_interpreter::{Engine as DartEngine, Definition, Instance};
 
 // Thread-local error storage
 thread_local! {
@@ -20,12 +20,10 @@ fn set_error(msg: impl Into<String>) -> *mut c_void {
 }
 
 #[no_mangle]
-pub extern "C" fn slint_skia_last_error() -> *const c_char {
-    LAST_ERROR.with(|e| {
-        e.borrow()
-            .as_ref()
-            .map(|s| s.as_ptr())
-            .unwrap_or(ptr::null())
+pub extern "C" fn slint_skia_last_error() -> *mut c_char {
+    LAST_ERROR.with(|e| match e.borrow_mut().take() {
+        Some(s) => s.into_raw(),
+        None => ptr::null_mut(),
     })
 }
 
@@ -73,12 +71,14 @@ pub extern "C" fn slint_skia_engine_compile(
             return set_error("null pointer");
         }
 
-        let source_str = unsafe { CStr::from_ptr(source) }
-            .to_str()
-            .map_err(|e| e.to_string())?;
-        let path_str = unsafe { CStr::from_ptr(path) }
-            .to_str()
-            .map_err(|e| e.to_string())?;
+        let source_str = match unsafe { CStr::from_ptr(source) }.to_str() {
+            Ok(s) => s,
+            Err(e) => return set_error(e.to_string()),
+        };
+        let path_str = match unsafe { CStr::from_ptr(path) }.to_str() {
+            Ok(s) => s,
+            Err(e) => return set_error(e.to_string()),
+        };
 
         let engine = unsafe { &mut *(engine as *mut OpaqueEngine) };
         let engine_inner = &mut engine.0;

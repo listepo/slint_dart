@@ -12,6 +12,8 @@ typedef void *SlintNativeDefinitionList;
 
 typedef void *SlintNativeInstance;
 
+typedef void (*SlintNativeCallbackFn)(void *user_data, const char *args_json);
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -57,6 +59,11 @@ bool slint_native_instance_set_property(SlintNativeInstance instance,
 char *slint_native_instance_invoke(SlintNativeInstance instance,
                                    const char *name,
                                    const char *args_json);
+
+bool slint_native_instance_set_callback(SlintNativeInstance instance,
+                                        const char *name,
+                                        SlintNativeCallbackFn cb,
+                                        void *user_data);
 
 void slint_native_string_free(char *s);
 

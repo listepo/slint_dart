@@ -10,7 +10,7 @@
 extern "C" {
 #endif // __cplusplus
 
-const char *slint_skia_last_error(void);
+char *slint_skia_last_error(void);
 
 void slint_skia_string_free(char *s);
 

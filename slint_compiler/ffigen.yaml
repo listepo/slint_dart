@@ -1,0 +1,9 @@
+name: SlintCompilerBindings
+description: Generated FFI bindings for slint-compiler-ffi. Do not edit.
+output: lib/src/bindings.g.dart
+headers:
+  entry-points:
+    - rust/include/slint_compiler_ffi.h
+preamble: |
+  // dart format off
+  // ignore_for_file: type=lint
