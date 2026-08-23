@@ -15,6 +15,13 @@ Provides software-rendered component instances through a C ABI:
 - **Engine**: Compiles Slint `.slint` source into component definitions (wraps upstream `slint-interpreter`'s `Compiler`)
 - **Component**: Instantiated, renderable scene (wraps its `ComponentInstance`)
 - **RenderTarget**: Software renderer exposing frames as premultiplied RGBA8888 pixels (wraps `MinimalSoftwareWindow`)
+- **`SlintInterpreterFactory`**: the `SlintComponentFactory` implementation
+  that backs `slint_generator`'s typed wrappers — compiles the source
+  embedded in a generated `*.g.dart` and instantiates the named component:
+
+```dart
+final app = await TodoApp.create(SlintInterpreterFactory());
+```
 
 ## Binding Pipeline
 

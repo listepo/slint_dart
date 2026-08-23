@@ -31,7 +31,8 @@ class InterpreterSlintEngine implements SlintEngine {
   late final _handle = slint_interpreter_engine_new();
 
   @override
-  Future<List<SlintComponentDefinition>> compile(String source, {String? path}) async {
+  Future<List<InterpreterSlintComponentDefinition>> compile(String source,
+      {String? path}) async {
     final sourceCStr = source.toNativeUtf8();
     final pathCStr = path?.toNativeUtf8() ?? nullptr;
 
@@ -113,7 +114,7 @@ class InterpreterSlintComponentDefinition implements SlintComponentDefinition {
   }
 }
 
-class InterpreterSlintComponent implements SlintComponent {
+class InterpreterSlintComponent implements SlintSoftwareComponent {
   final SlintInterpreterInstance _instanceHandle;
   late final InterpreterSoftwareRenderTarget _renderTarget = InterpreterSoftwareRenderTarget(this);
   final Map<String, NativeCallable<_InterpreterSlintCallbackFn>> _callbacks = {};
@@ -122,6 +123,7 @@ class InterpreterSlintComponent implements SlintComponent {
   InterpreterSlintComponent(this._instanceHandle);
 
   /// Lazily-created software render target sharing the same instance handle.
+  @override
   InterpreterSoftwareRenderTarget get renderTarget => _renderTarget;
 
   @override

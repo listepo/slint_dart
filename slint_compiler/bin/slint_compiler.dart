@@ -1,12 +1,15 @@
 import 'dart:io';
 
 import 'package:slint_compiler/slint_compiler.dart';
+import 'package:slint_generator/slint_generator.dart';
 
 /// Usage: `dart run slint_compiler <input.slint> [output.g.dart]`
 ///
-/// Default output: `<input directory>/<basename>.g.dart`. The output must
-/// live under a package's `lib/` — the generated wrapper binds to the code
-/// asset `package:<package>/<path under lib>` built by the app's hook.
+/// Writes both generated libraries: the typed wrapper `<output>.g.dart` and
+/// the AOT backend `<output>.aot.g.dart` next to it. Default output:
+/// `<input directory>/<basename>.g.dart`. It must live under a package's
+/// `lib/` — the AOT backend binds to the code asset
+/// `package:<package>/<path under lib>` built by the app's hook.
 Future<void> main(List<String> args) async {
   if (args.isEmpty || args.length > 2) {
     stderr.writeln('usage: dart run slint_compiler <input.slint> [output.g.dart]');
@@ -53,13 +56,23 @@ Future<void> main(List<String> args) async {
   }
 
   final schema = await introspectSlint(input.absolute.path);
-  final code = generateDartFromSchema(
+  final sourceName = input.uri.pathSegments.last;
+
+  output.writeAsStringSync(generateWrapperLibrary(
+    schema,
+    sourceName: sourceName,
+    slintSource: input.readAsStringSync(),
+  ));
+
+  final aotOutput = File(
+    output.path.replaceFirst(RegExp(r'(\.g)?\.dart$'), '.aot.g.dart'),
+  );
+  aotOutput.writeAsStringSync(generateDartFromSchema(
     schema,
     packageName: packageName,
     assetLibraryPath:
-        output.absolute.path.substring(libDir.length).replaceAll(sep, '/'),
-    sourceName: input.uri.pathSegments.last,
-  );
-  output.writeAsStringSync(code);
-  stdout.writeln('generated ${output.path}');
+        aotOutput.absolute.path.substring(libDir.length).replaceAll(sep, '/'),
+    sourceName: sourceName,
+  ));
+  stdout.writeln('generated ${output.path} and ${aotOutput.path}');
 }

@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 import 'package:slint_build/slint_build.dart';
+import 'package:slint_generator/slint_generator.dart' show introspectSlint;
 
-import 'src/introspect.dart';
 import 'src/rust_glue.dart';
 
 /// App build hook: AOT-compiles every `lib/**.slint` of the package into one
@@ -41,6 +41,7 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
 
   final packageConfig = findPackageConfig(input);
   final compilerRoot = packageRootFromConfig(packageConfig, 'slint_compiler');
+  final generatorRoot = packageRootFromConfig(packageConfig, 'slint_generator');
   final slintCoreCrate =
       packageRootFromConfig(packageConfig, 'slint').resolve('rust/');
 
@@ -51,7 +52,7 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
     final relative = f.path.substring(libPath.length);
     final schema = await introspectSlint(
       f.path,
-      compilerManifest: compilerRoot.resolve('rust/Cargo.toml'),
+      introspectManifest: generatorRoot.resolve('rust/Cargo.toml'),
     );
     files.add(SlintAotFile(
       stem: relative
@@ -61,7 +62,7 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
       schema: schema,
     ));
     assetNames.add(
-      '${relative.substring(0, relative.length - '.slint'.length)}.g.dart'
+      '${relative.substring(0, relative.length - '.slint'.length)}.aot.g.dart'
           .replaceAll(Platform.pathSeparator, '/'),
     );
   }
@@ -84,7 +85,7 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
       input.packageRoot.resolve('lib/'),
       // Regenerate when the glue generator or the introspect tool change.
       compilerRoot.resolve('lib/'),
-      compilerRoot.resolve('rust/'),
+      generatorRoot.resolve('rust/'),
     ],
   );
 }

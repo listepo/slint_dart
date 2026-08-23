@@ -17,6 +17,7 @@ dependencies:
   slint_compiler: ^0.1.0
 
 dev_dependencies:
+  slint_generator: ^0.1.0
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
@@ -25,5 +26,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - lib/todo.slint

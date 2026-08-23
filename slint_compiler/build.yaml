@@ -1,7 +1,7 @@
 builders:
-  slint:
+  slint_aot:
     import: "package:slint_compiler/builder.dart"
-    builder_factories: ["slintBuilder"]
-    build_extensions: {".slint": [".g.dart"]}
+    builder_factories: ["slintAotBuilder"]
+    build_extensions: {".slint": [".aot.g.dart"]}
     auto_apply: dependents
     build_to: source

@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:slint/slint.dart';
 import 'package:slint_interpreter/slint_interpreter.dart';
+
+import 'todo.aot.g.dart' as aot;
 import 'todo.g.dart';
 
 /// Backend follows the build mode (mirrors the hooks: debug bundles only the
-/// interpreter dylib, release/profile bundle only the AOT dylib).
+/// interpreter dylib, release/profile only the AOT dylib). Either way the
+/// typed `TodoApp` API generated from `todo.slint` is the same.
 const useCompiled = !kDebugMode;
 
 void main() {
@@ -35,9 +37,8 @@ class TodoPage extends StatefulWidget {
 }
 
 class _TodoPageState extends State<TodoPage> {
-  SlintComponent? _component;
-  SlintSoftwareRenderTarget? _target;
-  InterpreterSlintEngine? _engine;
+  TodoApp? _app;
+  SlintInterpreterFactory? _interpreter;
   Object? _loadError;
   final List<Map<String, Object?>> _todos = [
     {'title': 'Wire Slint into Flutter', 'checked': true},
@@ -53,32 +54,22 @@ class _TodoPageState extends State<TodoPage> {
 
   Future<void> _load() async {
     try {
+      final SlintComponentFactory factory;
       if (useCompiled) {
-        final app = await TodoApp.create();
-        _component = app;
-        _target = app.renderTarget;
+        factory = aot.todoAppFactory;
       } else {
-        _engine = InterpreterSlintEngine();
-        final source = await rootBundle.loadString('lib/todo.slint');
-        final defs = await _engine!.compile(source, path: 'todo.slint');
-        try {
-          final instance = defs.first.instantiate() as InterpreterSlintComponent;
-          _component = instance;
-          _target = instance.renderTarget;
-        } finally {
-          for (final def in defs) {
-            def.dispose();
-          }
-        }
+        factory = _interpreter = SlintInterpreterFactory();
       }
+      final app = await TodoApp.create(factory);
       if (!mounted) {
-        _component?.dispose();
-        _engine?.dispose();
+        app.dispose();
+        _interpreter?.dispose();
         return;
       }
-      _component!.setCallbackHandler('add-todo', _onAddTodo);
-      _component!.setCallbackHandler('toggle-todo', _onToggleTodo);
-      _component!.setCallbackHandler('remove-done', _onRemoveDone);
+      _app = app;
+      app.onAddTodo(_onAddTodo);
+      app.onToggleTodo(_onToggleTodo);
+      app.onRemoveDone(_onRemoveDone);
       _sync();
     } catch (e) {
       if (mounted) {
@@ -88,7 +79,7 @@ class _TodoPageState extends State<TodoPage> {
   }
 
   void _sync() {
-    _component!.setProperty('todo-model', _todos);
+    _app!.todoModel = _todos;
     _openCount = _todos.where((t) => !(t['checked'] as bool? ?? false)).length;
     if (mounted) setState(() {});
   }
@@ -120,14 +111,14 @@ class _TodoPageState extends State<TodoPage> {
 
   @override
   void dispose() {
-    _component?.dispose();
-    _engine?.dispose();
+    _app?.dispose();
+    _interpreter?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final target = _target;
+    final target = _app?.renderTarget;
     return Scaffold(
       appBar: AppBar(
         title: Text(

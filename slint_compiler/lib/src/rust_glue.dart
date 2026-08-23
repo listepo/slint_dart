@@ -1,7 +1,6 @@
 import 'dart:io';
 
-import 'names.dart';
-import 'schema.dart';
+import 'package:slint_generator/slint_generator.dart';
 
 /// The `slint` / `slint-build` version the generated crate pins. Must match
 /// slint-introspect's `i-slint-compiler` pin (rust/Cargo.toml).

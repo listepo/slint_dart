@@ -7,11 +7,14 @@ import 'schema.dart';
 /// Runs the `slint-introspect` tool (cargo) on [slintPath] and returns the
 /// typed public interface of its exported components.
 ///
-/// [compilerManifest] points at slint_compiler's `rust/Cargo.toml`; when null
-/// it is resolved through the package config (works under `dart run`, not in
-/// AOT-compiled contexts such as build hooks — those must pass it).
-Future<SlintSchema> introspectSlint(String slintPath, {Uri? compilerManifest}) async {
-  final manifest = compilerManifest ?? _defaultManifest();
+/// [introspectManifest] points at slint_generator's `rust/Cargo.toml`; when
+/// null it is resolved through the package config (works under `dart run`,
+/// not in AOT-compiled contexts such as build hooks — those must pass it).
+Future<SlintSchema> introspectSlint(
+  String slintPath, {
+  Uri? introspectManifest,
+}) async {
+  final manifest = introspectManifest ?? _defaultManifest();
   final result = await Process.run('cargo', [
     'run',
     '--quiet',
@@ -31,10 +34,10 @@ Future<SlintSchema> introspectSlint(String slintPath, {Uri? compilerManifest}) a
 }
 
 Uri _defaultManifest() {
-  final pkg = Isolate.resolvePackageUriSync(Uri.parse('package:slint_compiler/'));
+  final pkg = Isolate.resolvePackageUriSync(Uri.parse('package:slint_generator/'));
   if (pkg == null) {
     throw StateError(
-      'cannot resolve package:slint_compiler; pass compilerManifest explicitly',
+      'cannot resolve package:slint_generator; pass introspectManifest explicitly',
     );
   }
   return pkg.resolve('../rust/Cargo.toml');

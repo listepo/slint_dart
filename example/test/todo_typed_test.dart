@@ -1,31 +1,24 @@
+import 'package:slint_interpreter/slint_interpreter.dart';
 import 'package:test/test.dart';
-import 'package:todo_example/todo.aot.g.dart' as aot;
 import 'package:todo_example/todo.g.dart';
 
-/// The same generated wrapper as `todo_typed_test.dart`, driven by the AOT
-/// backend instead. Its dylib is bundled only for release/profile builds, so
-/// under `flutter test` (always debug) the code asset is absent and the first
-/// FFI call throws — skip instead of failing; `flutter build --release`
-/// covers this path.
-Future<TodoApp?> _createOrSkip() async {
-  try {
-    return await TodoApp.create(aot.todoAppFactory);
-  } on ArgumentError catch (e) {
-    markTestSkipped('AOT dylib is bundled only in release/profile builds: $e');
-    return null;
-  }
-}
-
+/// The generated typed wrapper driven by the interpreter backend: the
+/// `.slint` source embedded in `todo.g.dart` is compiled at runtime, so this
+/// runs under plain `flutter test` (always debug).
 void main() {
-  test('creates TodoApp from the AOT-compiled component', () async {
-    final app = await _createOrSkip();
-    if (app == null) return;
+  late SlintInterpreterFactory factory;
+
+  setUp(() => factory = SlintInterpreterFactory());
+  tearDown(() => factory.dispose());
+
+  test('creates TodoApp from the embedded source', () async {
+    final app = await TodoApp.create(factory);
+    expect(app.component, isA<InterpreterSlintComponent>());
     app.dispose();
   });
 
   test('todo-model roundtrips through typed accessors', () async {
-    final app = await _createOrSkip();
-    if (app == null) return;
+    final app = await TodoApp.create(factory);
 
     app.todoModel = [
       {'title': 'buy milk', 'checked': false},
@@ -43,8 +36,7 @@ void main() {
   });
 
   test('callbacks fire with typed args', () async {
-    final app = await _createOrSkip();
-    if (app == null) return;
+    final app = await TodoApp.create(factory);
 
     List<Object?>? added;
     List<Object?>? toggled;
@@ -75,8 +67,7 @@ void main() {
   });
 
   test('renders to pixels', () async {
-    final app = await _createOrSkip();
-    if (app == null) return;
+    final app = await TodoApp.create(factory);
     final target = app.renderTarget;
 
     app.todoModel = [
@@ -90,5 +81,12 @@ void main() {
         reason: 'rendered frame should not be fully transparent black');
 
     app.dispose();
+  });
+
+  test('rejects a component the source does not export', () async {
+    expect(
+      () => factory.instantiate(TodoApp.slintSource, 'NoSuchComponent'),
+      throwsA(isA<StateError>()),
+    );
   });
 }

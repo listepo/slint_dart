@@ -8,17 +8,21 @@
 |---|---|---|---|
 | `slint/` | `slint` | `slint-dart-core` | Backend-agnostic core: Dart API (engine, component, render targets, input events), the `SlintView` widget, and a shared Rust events module mapping the FFI event encoding onto `slint::platform::WindowEvent`. No interpreter, no codegen. |
 | `slint_interpreter/` | `slint_interpreter` | `slint-interpreter-ffi` (`rust/`), `slint-dart-interpreter` (`interpreter/`) | Runtime `.slint` path: the nested `interpreter/` crate wraps `slint-interpreter` (compile, instantiate, JSON value bridge, callbacks) behind a renderer-agnostic API; `rust/` adds the software renderer (`slint::platform::software_renderer`) and the C ABI → RGBA frames. |
-| `slint_compiler/` | `slint_compiler` | `slint-introspect` | Compile-time `.slint` path, no interpreter: a build_runner builder generates `foo.g.dart` next to each `foo.slint` (typed wrapper per component — properties, callbacks, render target), and the app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into one code asset the wrappers bind to via `@Native`. `slint-introspect` extracts the typed schema driving both. |
+| `slint_generator/` | `slint_generator` | `slint-introspect` | Shared codegen: `slint-introspect` extracts the typed schema from a `.slint` file, and a build_runner builder emits `foo.g.dart` next to each `foo.slint` — one typed class per component (properties, callbacks, render target) plus the embedded `.slint` source. Backend-agnostic: instances come from a `SlintComponentFactory`. |
+| `slint_compiler/` | `slint_compiler` | — | AOT backend, no interpreter: a build_runner builder emits `foo.aot.g.dart` (the `@Native` externs plus one `SlintComponentFactory` per component), and the app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into the one code asset those externs bind to. |
 | `slint_skia/` | `slint_skia` | `slint-skia-ffi` | Interpreter + `i-slint-renderer-skia` (GPU) → Flutter external texture. GPU surface plumbing stubbed. |
 
-Two independent ways to render a `.slint` UI:
+One typed API, two independent backends behind it:
 
 ```
-runtime:       .slint file ──▶ slint_interpreter (or slint_skia) ──▶ SlintView
-compile-time:  .slint file ──▶ build_runner (slint_compiler) ──▶ foo.g.dart ──▶ app hook: slint-build AOT cdylib ──▶ SlintView
+                    ┌─ slint_generator ──▶ foo.g.dart (typed API + embedded source)
+.slint file ──▶ ────┤
+                    ├─ runtime:      SlintInterpreterFactory ──────────────────────────┐
+                    └─ compile-time: slint_compiler ──▶ foo.aot.g.dart (factory)       ├──▶ SlintView
+                                     + app hook: slint-build AOT cdylib ───────────────┘
 ```
 
-Both paths feed the same `SlintView` widget via `SlintSoftwareRenderTarget`. The runtime path compiles `.slint` source with `slint-interpreter` inside the `slint_interpreter` package; the compiled path ships slint-build-generated components in the app's own code asset and involves no interpreter at all.
+`TodoApp.create(factory)` is the same call either way — only the factory differs. Both paths feed the same `SlintView` widget via `SlintSoftwareRenderTarget`. The runtime path compiles the embedded `.slint` source with `slint-interpreter` inside the `slint_interpreter` package; the compiled path ships slint-build-generated components in the app's own code asset and involves no interpreter at all.
 
 The path follows the Flutter build mode, and only the matching dylib is bundled: debug builds (including `flutter test`) ship the interpreter (`slint_interpreter_ffi`), release/profile builds ship the AOT dylib (`slint_dart_aot`). The hooks branch on `linkingEnabled`, which Flutter sets exactly for the non-debug modes.
 
@@ -72,6 +76,7 @@ hooks:
 - [x] `SlintView` widget (blits software frames; lives in the `slint` package)
 - [x] Rust→Dart callbacks via `NativeCallable`
 - [x] Interpreter path end-to-end (example todo app, smoke-tested)
-- [x] Compiled path (`slint_compiler`): `.slint` → typed `*.g.dart` codegen; backend follows the build mode (debug → interpreter, release/profile → AOT)
+- [x] Typed codegen (`slint_generator`): `.slint` → `*.g.dart`, one API over both backends via `SlintComponentFactory`
+- [x] Compiled path (`slint_compiler`): `*.aot.g.dart` + slint-build AOT cdylib; backend follows the build mode (debug → interpreter, release/profile → AOT)
 - [x] Build glue: native assets `hook/build.dart` per package + `bazel_worker` cargo worker (`flutter build/run/test` compiles the Rust crates; debug/release via `profile` user-define)
 - [ ] Skia GPU surface plumbing per platform (Metal / GL / Vulkan / D3D); `Texture` widget path

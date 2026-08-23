@@ -37,7 +37,7 @@ void main() {
     final source = slintFile.readAsStringSync();
     final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate() as InterpreterSlintComponent;
+    final component = defs.first.instantiate();
 
     // Set model
     final model = [
@@ -70,7 +70,7 @@ void main() {
     final source = slintFile.readAsStringSync();
     final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate() as InterpreterSlintComponent;
+    final component = defs.first.instantiate();
 
     final received = <Object?>[];
     component.setCallbackHandler('add-todo', (args) {
@@ -97,7 +97,7 @@ void main() {
     final source = slintFile.readAsStringSync();
     final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate() as InterpreterSlintComponent;
+    final component = defs.first.instantiate();
 
     final target = component.renderTarget;
     target.resize(400, 600);
