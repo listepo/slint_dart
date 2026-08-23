@@ -1,0 +1,14 @@
+[package]
+name = "slint-skia-ffi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+slint-dart-core = { path = "../../slint/rust" }
+slint = { version = "1", default-features = false, features = ["compat-1-2", "std"] }
+i-slint-renderer-skia = "1"
+i-slint-core = "1"

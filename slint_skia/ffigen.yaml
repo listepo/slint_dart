@@ -1,0 +1,10 @@
+output: 'lib/src/bindings.g.dart'
+name: SlintSkiaBindings
+
+headers:
+  entry-points:
+    - 'rust/include/slint_skia_ffi.h'
+
+preamble: |
+  // dart format off
+  // ignore_for_file: type=lint

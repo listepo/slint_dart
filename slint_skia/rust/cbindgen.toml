@@ -1,0 +1,4 @@
+language = "C"
+includes = []
+include_guard = "SLINT_SKIA_FFI_H"
+cpp_compat = true

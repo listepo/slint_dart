@@ -1,0 +1,10 @@
+name: slint_dart_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+workspace:
+  - slint
+  - slint_native
+  - slint_skia

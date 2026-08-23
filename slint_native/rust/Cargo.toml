@@ -1,0 +1,18 @@
+[package]
+name = "slint-native-ffi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+slint-dart-core = { path = "../../slint/rust" }
+slint = { version = "1", default-features = false, features = ["compat-1-2", "std", "renderer-software"] }
+slint-interpreter = { version = "1", default-features = false, features = ["compat-1-2", "std"] }
+spin_on = "0.1"
+serde_json = "1"
+
+[build-dependencies]
+cbindgen = "0.29"
