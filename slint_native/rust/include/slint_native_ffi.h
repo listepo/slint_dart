@@ -30,18 +30,6 @@ uint32_t slint_native_definitions_count(SlintNativeDefinitionList list);
 
 char *slint_native_definitions_name(SlintNativeDefinitionList list, uint32_t index);
 
-/**
- * Public properties of definition `index` as a JSON array
- * `[{"name": "...", "type": "..."}]`. Free with slint_native_string_free.
- */
-char *slint_native_definitions_properties_json(SlintNativeDefinitionList list, uint32_t index);
-
-/**
- * Public callback names of definition `index` as a JSON string array.
- * Free with slint_native_string_free.
- */
-char *slint_native_definitions_callbacks_json(SlintNativeDefinitionList list, uint32_t index);
-
 void slint_native_definitions_free(SlintNativeDefinitionList list);
 
 SlintNativeInstance slint_native_instantiate(SlintNativeDefinitionList list, uint32_t index);

@@ -177,62 +177,6 @@ pub extern "C" fn slint_native_definitions_name(list: SlintNativeDefinitionList,
     }
 }
 
-fn definitions_string(
-    list: SlintNativeDefinitionList,
-    index: u32,
-    context: &str,
-    get: impl Fn(&Definition) -> String + std::panic::RefUnwindSafe,
-) -> *mut c_char {
-    clear_error();
-    if list.0.is_null() {
-        return ptr::null_mut();
-    }
-    match catch_unwind(|| {
-        let defs = unsafe { &*(list.0 as *const Vec<Definition>) };
-        if (index as usize) >= defs.len() {
-            set_error("index out of bounds".into());
-            return ptr::null_mut();
-        }
-        match CString::new(get(&defs[index as usize])) {
-            Ok(cstr) => cstr.into_raw(),
-            Err(_) => {
-                set_error("string contains null byte".into());
-                ptr::null_mut()
-            }
-        }
-    }) {
-        Ok(ptr) => ptr,
-        Err(_) => {
-            set_error(format!("panicked in {}", context));
-            ptr::null_mut()
-        }
-    }
-}
-
-/// Public properties of definition `index` as a JSON array
-/// `[{"name": "...", "type": "..."}]`. Free with slint_native_string_free.
-#[no_mangle]
-pub extern "C" fn slint_native_definitions_properties_json(
-    list: SlintNativeDefinitionList,
-    index: u32,
-) -> *mut c_char {
-    definitions_string(list, index, "slint_native_definitions_properties_json", |d| {
-        d.properties_json()
-    })
-}
-
-/// Public callback names of definition `index` as a JSON string array.
-/// Free with slint_native_string_free.
-#[no_mangle]
-pub extern "C" fn slint_native_definitions_callbacks_json(
-    list: SlintNativeDefinitionList,
-    index: u32,
-) -> *mut c_char {
-    definitions_string(list, index, "slint_native_definitions_callbacks_json", |d| {
-        d.callbacks_json()
-    })
-}
-
 #[no_mangle]
 pub extern "C" fn slint_native_definitions_free(list: SlintNativeDefinitionList) {
     if !list.0.is_null() {

@@ -10,11 +10,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  ffi: ^2.1.0
   slint: ^0.1.0
   slint_native: ^0.1.0
+  hooks: ^2.0.0
+  slint_compiler: ^0.1.0
 
 dev_dependencies:
-  slint_compiler: ^0.1.0
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

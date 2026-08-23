@@ -1,56 +1,63 @@
 # slint_compiler
 
-Generates typed Dart wrappers (`*.g.dart`) from `.slint` files. Pure Dart —
-no Rust codegen, no per-app native build.
+Generates typed Dart wrappers (`*.g.dart`) from `.slint` files, AOT-compiled
+with `slint-build` — **no slint-interpreter at runtime**. The interpreter
+path (`slint_native`) is untouched and independent.
 
 ## How it works
 
 ```
-foo.slint ──▶ build_runner (slint_compiler builder) ──▶ foo.g.dart (typed classes)
+                    ┌─ build_runner ──▶ foo.g.dart (typed classes, @Native bindings)
+foo.slint ──▶ schema┤
+                    └─ app build hook ─▶ slint-build codegen + C ABI glue ──▶ one cdylib code asset
 ```
 
-The generator compiles the `.slint` source with the `slint_native`
-interpreter engine, introspects each exported component (name, properties
-with types, callbacks), and emits one typed wrapper class per component. The
-`.slint` source is embedded in the generated file and compiled by the
-interpreter at runtime — the only native code is the shared `slint_native`
-engine, built automatically by its build hook.
-
-Generated per component:
-
-- `static Future<Foo> create()` — compile embedded source + instantiate
-- typed property accessors (`todo-model` → `List<Object?> get todoModel` /
-  setter), mapped from Slint types (Number→double, String, Bool, Model→List,
-  Struct→Map; everything else `Object?`)
-- `onX(handler)` / `invokeX(args)` per callback
-- `renderTarget` for `SlintView`, and the full `SlintComponent` interface by
-  delegation
+- `rust/` holds `slint-introspect`: compiles the `.slint` with
+  `i-slint-compiler` and dumps the full typed public interface (struct
+  fields, array element types, callback signatures) as JSON.
+- The build_runner builder turns each `lib/**.slint` into a sibling
+  `*.g.dart`: one class per exported component with typed property accessors,
+  `onX`/`invokeX` per callback, a software `renderTarget`, and the full
+  `SlintComponent` interface. It binds via `@Native` to the code asset
+  `package:<app>/<path>.g.dart`.
+- The app's `hook/build.dart` calls `buildSlintAot`, which generates a Rust
+  crate in hook scratch space (slint-build codegen of every `lib/**.slint`
+  plus generated JSON⇄typed C ABI glue), builds it through slint_build's
+  cargo worker, and emits the matching code assets. The user-visible artifact
+  stays Dart-only.
 
 ## Usage
 
-Add to the app's dev_dependencies and run build_runner — every `*.slint` in
-the package gets a sibling `*.g.dart`:
-
 ```yaml
+# pubspec.yaml of the app
+dependencies:
+  ffi: ^2.1.0        # the generated wrappers use package:ffi
+
 dev_dependencies:
-  slint_compiler: ^0.1.0
   build_runner: ^2.16.0
+  hooks: ^2.0.0
+  slint_compiler: ^0.1.0
 ```
+
+```dart
+// hook/build.dart
+import 'package:hooks/hooks.dart';
+import 'package:slint_compiler/aot_build.dart';
+
+void main(List<String> args) => build(args, buildSlintAot);
+```
+
+Put `.slint` files under `lib/`, then:
 
 ```bash
 dart run build_runner build
 ```
 
-The builder auto-applies to dependents (`build_to: source`), so generated
-files land in the source tree and Flutter builds need no build_runner step.
-It shells out to the CLI per file: the generator needs the `slint_native`
-FFI engine, whose native asset only exists under `dart run` (build hooks) —
-build_runner's AOT build script has none.
-
-One-off CLI (second argument optional, defaults to `<input>.g.dart`):
+`flutter run`/`build`/`test` compiles the native side automatically via the
+hook. One-off CLI (second argument optional, must be under `lib/`):
 
 ```bash
-dart run slint_compiler todo.slint lib/todo.g.dart
+dart run slint_compiler lib/todo.slint lib/todo.g.dart
 ```
 
 ```dart
@@ -69,7 +76,10 @@ app.onAddTodo((args) {
 
 ## Limits
 
-- Callback parameter types are not introspectable (slint-interpreter exposes
-  names only), so handlers receive `List<Object?>`.
-- The embedded source is compiled as a single document; relative `.slint`
-  file imports are not resolved at runtime (std-widgets works).
+- Supported property/callback types: numbers, string, bool, named structs,
+  arrays. Color/brush/image/enum properties fail generation with a clear
+  error.
+- Component names must be unique across the package (all components share
+  one glue dylib).
+- A Rust toolchain is required at generation and build time (the schema tool
+  and the glue crate are compiled with cargo).

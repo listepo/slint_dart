@@ -2,8 +2,8 @@
 //! engine API (compile, instantiate, JSON value bridge, callbacks).
 //!
 //! This crate never depends on build-time codegen (`slint-build`); the
-//! compile-time path lives in `slint-compiler-ffi`. Renderer-agnostic event
-//! mapping lives in `slint-dart-core`.
+//! compile-time path is the `slint_compiler`-generated AOT crate.
+//! Renderer-agnostic event mapping lives in `slint-dart-core`.
 
 use serde_json::Value as JsonValue;
 use slint::Model;
@@ -62,24 +62,6 @@ impl Definition {
     /// Get the component name.
     pub fn name(&self) -> String {
         self.0.name().to_string()
-    }
-
-    /// Public properties as a JSON array: `[{"name": "...", "type": "..."}]`.
-    /// `type` is the `Debug` form of `slint_interpreter::ValueType`
-    /// (Number, String, Bool, Model, Struct, Brush, Image, Void, ...).
-    pub fn properties_json(&self) -> String {
-        let props: Vec<JsonValue> = self
-            .0
-            .properties()
-            .map(|(name, ty)| serde_json::json!({"name": name, "type": format!("{:?}", ty)}))
-            .collect();
-        JsonValue::Array(props).to_string()
-    }
-
-    /// Public callback names as a JSON array of strings.
-    pub fn callbacks_json(&self) -> String {
-        let cbs: Vec<JsonValue> = self.0.callbacks().map(JsonValue::String).collect();
-        JsonValue::Array(cbs).to_string()
     }
 
     /// Instantiate this component definition into a running instance.

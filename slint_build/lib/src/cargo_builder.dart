@@ -30,6 +30,8 @@ Future<void> buildCargoCrate(
   BuildOutputBuilder output, {
   required String crateName,
   String assetName = 'src/bindings.g.dart',
+  Iterable<String>? assetNames,
+  Uri? manifestPath,
   Iterable<Uri> sourceDirs = const [],
   Iterable<Uri> extraDependencies = const [],
 }) async {
@@ -44,7 +46,7 @@ Future<void> buildCargoCrate(
 
   final triple = rustTriple(code);
   final profile = resolveCargoProfile(input);
-  final manifest = input.packageRoot.resolve('rust/Cargo.toml');
+  final manifest = manifestPath ?? input.packageRoot.resolve('rust/Cargo.toml');
 
   final request = WorkRequest(
     arguments: [
@@ -58,8 +60,8 @@ Future<void> buildCargoCrate(
     ],
   );
 
-  final packageConfig = _findPackageConfig(input);
-  final workerScript = _packageRootFromConfig(packageConfig, 'slint_build')
+  final packageConfig = findPackageConfig(input);
+  final workerScript = packageRootFromConfig(packageConfig, 'slint_build')
       .resolve('bin/cargo_worker.dart');
   final dart = _dartExecutable();
   final driver = BazelWorkerDriver(
@@ -105,14 +107,16 @@ Future<void> buildCargoCrate(
   await bundled.parent.create(recursive: true);
   await artifact.copy(bundled.path);
 
-  output.assets.code.add(
-    CodeAsset(
-      package: input.packageName,
-      name: assetName,
-      linkMode: DynamicLoadingBundled(),
-      file: bundled.uri,
-    ),
-  );
+  for (final name in assetNames ?? [assetName]) {
+    output.assets.code.add(
+      CodeAsset(
+        package: input.packageName,
+        name: name,
+        linkMode: DynamicLoadingBundled(),
+        file: bundled.uri,
+      ),
+    );
+  }
 
   for (final uri in _dependencyFiles(input, sourceDirs)) {
     output.dependencies.add(uri);
@@ -192,7 +196,7 @@ Map<String, String> _crossCompileEnv(CodeConfig code, String triple) {
 }
 
 Iterable<Uri> _dependencyFiles(BuildInput input, Iterable<Uri> sourceDirs) sync* {
-  const exts = ['.rs', '.toml', '.slint', '.h'];
+  const exts = ['.rs', '.toml', '.slint', '.h', '.dart'];
   for (final dirUri in sourceDirs) {
     final dir = Directory.fromUri(dirUri);
     if (!dir.existsSync()) continue;
@@ -218,7 +222,9 @@ Iterable<Uri> _dependencyFiles(BuildInput input, Iterable<Uri> sourceDirs) sync*
   }
 }
 
-Uri _findPackageConfig(BuildInput input) {
+/// The `.dart_tool/package_config.json` governing this hook invocation,
+/// found by walking up from the shared output directory.
+Uri findPackageConfig(BuildInput input) {
   var dir = Directory.fromUri(input.outputDirectoryShared);
   for (var i = 0; i < 15; i++) {
     final candidate = File(
@@ -235,7 +241,8 @@ Uri _findPackageConfig(BuildInput input) {
   );
 }
 
-Uri _packageRootFromConfig(Uri packageConfig, String packageName) {
+/// Root directory of [packageName] according to [packageConfig].
+Uri packageRootFromConfig(Uri packageConfig, String packageName) {
   final json =
       jsonDecode(File.fromUri(packageConfig).readAsStringSync())
           as Map<String, Object?>;

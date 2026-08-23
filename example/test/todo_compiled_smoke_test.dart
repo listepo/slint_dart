@@ -2,7 +2,7 @@ import 'package:test/test.dart';
 import 'package:todo_example/todo.g.dart';
 
 void main() {
-  test('TodoApp creates from embedded source', () async {
+  test('TodoApp creates from AOT-compiled component', () async {
     final app = await TodoApp.create();
     expect(app, isNotNull);
     app.dispose();

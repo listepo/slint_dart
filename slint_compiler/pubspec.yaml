@@ -1,5 +1,5 @@
 name: slint_compiler
-description: Generates typed Dart wrappers (*.g.dart) from .slint files. Pure Dart — the generated code runs on the slint_native interpreter engine.
+description: Generates typed Dart wrappers (*.g.dart) from .slint files, AOT-compiled via slint-build — no slint-interpreter at runtime.
 version: 0.1.0
 publish_to: none
 resolution: workspace
@@ -9,8 +9,9 @@ environment:
 
 dependencies:
   build: ^4.0.10
-  slint: ^0.1.0
-  slint_native: ^0.1.0
+  code_assets: ^1.2.1
+  hooks: ^2.0.0
+  slint_build: ^0.1.0
 
 dev_dependencies:
   lints: ^6.0.0

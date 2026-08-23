@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `slint/` | `slint` | `slint-dart-core` | Backend-agnostic core: Dart API (engine, component, render targets, input events), the `SlintView` widget, and a shared Rust events module mapping the FFI event encoding onto `slint::platform::WindowEvent`. No interpreter, no codegen. |
 | `slint_interpreter/` | — | `slint-dart-interpreter` | Runtime `.slint` path: wraps `slint-interpreter` (compile, instantiate, JSON value bridge, callbacks) behind a renderer-agnostic API. |
-| `slint_compiler/` | `slint_compiler` | — | Compile-time `.slint` path in pure Dart: a build_runner builder (`dart run build_runner build`; one-off CLI: `dart run slint_compiler foo.slint`) generates `foo.g.dart` next to each `foo.slint`, with one typed wrapper class per component (properties, callbacks, render target). The embedded source runs on the `slint_native` interpreter engine at runtime. |
+| `slint_compiler/` | `slint_compiler` | `slint-introspect` | Compile-time `.slint` path, no interpreter: a build_runner builder generates `foo.g.dart` next to each `foo.slint` (typed wrapper per component — properties, callbacks, render target), and the app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into one code asset the wrappers bind to via `@Native`. `slint-introspect` extracts the typed schema driving both. |
 | `slint_native/` | `slint_native` | `slint-native-ffi` | Interpreter backend over FFI: `slint-dart-interpreter` + software renderer (`slint::platform::software_renderer`) → RGBA frames. |
 | `slint_skia/` | `slint_skia` | `slint-skia-ffi` | Interpreter + `i-slint-renderer-skia` (GPU) → Flutter external texture. GPU surface plumbing stubbed. |
 
@@ -16,10 +16,10 @@ Two independent ways to render a `.slint` UI:
 
 ```
 runtime:       .slint file ──▶ slint_interpreter ──▶ slint_native (or slint_skia) ──▶ SlintView
-compile-time:  .slint file ──▶ build_runner (slint_compiler) ──▶ foo.g.dart (typed Dart) ──▶ slint_native ──▶ SlintView
+compile-time:  .slint file ──▶ build_runner (slint_compiler) ──▶ foo.g.dart ──▶ app hook: slint-build AOT cdylib ──▶ SlintView
 ```
 
-Both paths execute on the `slint_native` engine and feed the same `SlintView` widget via `SlintSoftwareRenderTarget`; the compiled path adds generated typed wrappers (and embeds the `.slint` source so no asset load is needed).
+Both paths feed the same `SlintView` widget via `SlintSoftwareRenderTarget`. The runtime path compiles `.slint` source with `slint-interpreter` inside `slint_native`; the compiled path ships slint-build-generated components in the app's own code asset and involves no interpreter at all.
 
 ## Bindings pipeline
 

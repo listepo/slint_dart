@@ -1,14 +1,14 @@
 import 'dart:io';
 
 import 'package:build/build.dart';
+import 'package:slint_build/slint_build.dart' show packageRootFromConfig;
+
+import 'src/generator.dart';
+import 'src/introspect.dart';
 
 /// Entry point for build_runner (wired up in `build.yaml`).
 Builder slintBuilder(BuilderOptions options) => _SlintBuilder();
 
-/// Runs the `slint_compiler` CLI in a subprocess instead of calling
-/// [generateDart] directly: the generator drives the slint_native FFI engine,
-/// whose native asset only exists under `dart run` (build hooks). The
-/// AOT-compiled build_runner script has no native assets.
 class _SlintBuilder implements Builder {
   @override
   final Map<String, List<String>> buildExtensions = const {
@@ -18,37 +18,35 @@ class _SlintBuilder implements Builder {
   @override
   Future<void> build(BuildStep buildStep) async {
     final input = buildStep.inputId;
-    final source = await buildStep.readAsString(input);
-    final dir = await Directory.systemTemp.createTemp('slint_compiler');
-    try {
-      final inFile = File('${dir.path}/${input.pathSegments.last}')
-        ..writeAsStringSync(source);
-      final outPath = '${dir.path}/out.g.dart';
-      final result = await Process.run(
-        _dartExecutable(),
-        ['run', 'slint_compiler', inFile.path, outPath],
+    if (!input.path.startsWith('lib/')) {
+      throw StateError(
+        '${input.path}: .slint files must live under lib/ — the build hook '
+        'only AOT-compiles lib/**.slint, and the generated wrapper binds to '
+        'that code asset.',
       );
-      if (result.exitCode != 0) {
-        throw StateError(
-          'slint_compiler failed on ${input.path}:\n'
-          '${result.stdout}${result.stderr}',
-        );
-      }
-      await buildStep.writeAsString(
-        input.changeExtension('.g.dart'),
-        File(outPath).readAsStringSync(),
-      );
-    } finally {
-      dir.deleteSync(recursive: true);
     }
-  }
+    await buildStep.readAsString(input); // dependency tracking
 
-  /// The build script runs under dartaotruntime; find the `dart` CLI.
-  String _dartExecutable() {
-    final self = File(Platform.resolvedExecutable);
-    final name = Platform.isWindows ? 'dart.exe' : 'dart';
-    if (self.uri.pathSegments.last == name) return self.path;
-    final sibling = File('${self.parent.path}/$name');
-    return sibling.existsSync() ? sibling.path : 'dart';
+    // build_runner runs from the package root; resolve slint_compiler's
+    // introspect tool through the package config (Isolate.resolvePackageUri
+    // is unavailable in the AOT-compiled build script).
+    final packageConfig =
+        File('.dart_tool/package_config.json').absolute.uri;
+    final compilerRoot = packageRootFromConfig(packageConfig, 'slint_compiler');
+    final schema = await introspectSlint(
+      File(input.path).absolute.path,
+      compilerManifest: compilerRoot.resolve('rust/Cargo.toml'),
+    );
+
+    final outputId = input.changeExtension('.g.dart');
+    await buildStep.writeAsString(
+      outputId,
+      generateDartFromSchema(
+        schema,
+        packageName: input.package,
+        assetLibraryPath: outputId.path.substring('lib/'.length),
+        sourceName: input.pathSegments.last,
+      ),
+    );
   }
 }
