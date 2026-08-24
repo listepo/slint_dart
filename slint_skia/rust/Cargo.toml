@@ -12,3 +12,6 @@ slint-dart-interpreter = { path = "../../slint_interpreter/interpreter" }
 slint = { version = "1", default-features = false, features = ["compat-1-2", "std"] }
 i-slint-renderer-skia = "1"
 i-slint-core = "1"
+
+[lints]
+workspace = true

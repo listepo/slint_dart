@@ -71,6 +71,13 @@ hooks:
 
 - Flutter via mise: `mise exec -- flutter ...`
 - Rust via rustup (`cargo`), plus `cargo install cbindgen`
+- Rust formatting and linting (rustfmt defaults; lint levels in the root
+  `Cargo.toml` `[workspace.lints.*]` tables):
+
+```bash
+cargo fmt --all
+cargo clippy --workspace --exclude slint-skia-ffi --all-targets
+```
 
 ## Status / next steps
 

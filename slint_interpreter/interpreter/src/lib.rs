@@ -79,7 +79,9 @@ pub struct Instance(pub ComponentInstance);
 impl Instance {
     /// Get a property value as JSON string.
     pub fn get_property_json(&self, name: &str) -> Result<String, String> {
-        let value = self.0.get_property(name)
+        let value = self
+            .0
+            .get_property(name)
             .map_err(|e| format!("Failed to get property '{}': {:?}", name, e))?;
         value_to_json(&value)
     }
@@ -87,7 +89,8 @@ impl Instance {
     /// Set a property value from a JSON string.
     pub fn set_property_json(&self, name: &str, json: &str) -> Result<(), String> {
         let value = value_from_json(json)?;
-        self.0.set_property(name, value)
+        self.0
+            .set_property(name, value)
             .map_err(|e| format!("Failed to set property '{}': {:?}", name, e))
     }
 
@@ -96,7 +99,8 @@ impl Instance {
         let args_val: JsonValue = serde_json::from_str(args_json)
             .map_err(|e| format!("Failed to parse args JSON: {}", e))?;
 
-        let args_array = args_val.as_array()
+        let args_array = args_val
+            .as_array()
             .ok_or_else(|| "args_json must be a JSON array".to_string())?;
 
         let args: Vec<Value> = args_array
@@ -104,7 +108,9 @@ impl Instance {
             .map(json_to_value_internal)
             .collect::<Result<Vec<_>, String>>()?;
 
-        let result = self.0.invoke(name, &args)
+        let result = self
+            .0
+            .invoke(name, &args)
             .map_err(|e| format!("Failed to invoke '{}': {:?}", name, e))?;
 
         value_to_json(&result)
@@ -112,24 +118,29 @@ impl Instance {
 
     /// Register a host callback; arguments arrive as a JSON array string.
     /// Callback return values are ignored (Slint side gets Void).
-    pub fn set_callback_json(&self, name: &str, f: Box<dyn Fn(&str) + 'static>) -> Result<(), String> {
-        self.0.set_callback(name, move |args: &[Value]| {
-            let json_arr: Result<Vec<JsonValue>, String> = args
-                .iter()
-                .map(value_to_json_internal)
-                .collect();
-            match json_arr {
-                Ok(arr) => {
-                    if let Ok(json_str) = serde_json::to_string(&serde_json::Value::Array(arr)) {
-                        f(&json_str);
+    pub fn set_callback_json(
+        &self,
+        name: &str,
+        f: Box<dyn Fn(&str) + 'static>,
+    ) -> Result<(), String> {
+        self.0
+            .set_callback(name, move |args: &[Value]| {
+                let json_arr: Result<Vec<JsonValue>, String> =
+                    args.iter().map(value_to_json_internal).collect();
+                match json_arr {
+                    Ok(arr) => {
+                        if let Ok(json_str) = serde_json::to_string(&serde_json::Value::Array(arr))
+                        {
+                            f(&json_str);
+                        }
+                    }
+                    Err(_) => {
+                        f("null");
                     }
                 }
-                Err(_) => {
-                    f("null");
-                }
-            }
-            Value::Void
-        }).map_err(|e| format!("{:?}", e))
+                Value::Void
+            })
+            .map_err(|e| format!("{:?}", e))
     }
 }
 
@@ -137,8 +148,7 @@ impl Instance {
 // ponytail: images/brushes not bridged; add when needed
 pub fn value_to_json(v: &Value) -> Result<String, String> {
     let json = value_to_json_internal(v)?;
-    serde_json::to_string(&json)
-        .map_err(|e| format!("Failed to serialize JSON: {}", e))
+    serde_json::to_string(&json).map_err(|e| format!("Failed to serialize JSON: {}", e))
 }
 
 fn value_to_json_internal(v: &Value) -> Result<JsonValue, String> {
@@ -149,8 +159,9 @@ fn value_to_json_internal(v: &Value) -> Result<JsonValue, String> {
             if n.fract() == 0.0 && *n >= i64::MIN as f64 && *n <= i64::MAX as f64 {
                 Ok(JsonValue::Number((*n as i64).into()))
             } else {
-                Ok(JsonValue::Number(serde_json::Number::from_f64(*n)
-                    .unwrap_or_else(|| serde_json::Number::from(0))))
+                Ok(JsonValue::Number(
+                    serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0)),
+                ))
             }
         }
         Value::String(s) => Ok(JsonValue::String(s.to_string())),
@@ -170,14 +181,17 @@ fn value_to_json_internal(v: &Value) -> Result<JsonValue, String> {
             }
             Ok(JsonValue::Object(obj))
         }
-        _ => Err(format!("Unsupported value type in JSON conversion: {:?}", v)),
+        _ => Err(format!(
+            "Unsupported value type in JSON conversion: {:?}",
+            v
+        )),
     }
 }
 
 /// Convert JSON to a slint Value.
 pub fn value_from_json(json: &str) -> Result<Value, String> {
-    let v: JsonValue = serde_json::from_str(json)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    let v: JsonValue =
+        serde_json::from_str(json).map_err(|e| format!("Failed to parse JSON: {}", e))?;
     json_to_value_internal(&v)
 }
 
@@ -196,12 +210,12 @@ fn json_to_value_internal(v: &JsonValue) -> Result<Value, String> {
         }
         JsonValue::String(s) => Ok(Value::String(s.clone().into())),
         JsonValue::Array(arr) => {
-            let values: Result<Vec<Value>, String> = arr
-                .iter()
-                .map(json_to_value_internal)
-                .collect();
+            let values: Result<Vec<Value>, String> =
+                arr.iter().map(json_to_value_internal).collect();
             let values = values?;
-            Ok(Value::Model(slint::ModelRc::new(slint::VecModel::from(values))))
+            Ok(Value::Model(slint::ModelRc::new(slint::VecModel::from(
+                values,
+            ))))
         }
         JsonValue::Object(obj) => {
             let fields: Result<Vec<(String, Value)>, String> = obj

@@ -15,3 +15,6 @@ path = "src/main.rs"
 i-slint-compiler = { version = "=1.17.1", features = ["default", "rust", "display-diagnostics", "software-renderer", "bundle-translations"] }
 serde_json = "1"
 spin_on = "0.1"
+
+[lints]
+workspace = true

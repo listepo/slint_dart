@@ -1,4 +1,8 @@
 #![allow(non_camel_case_types)]
+// C ABI entry points: only ever called through the C ABI with the pointer
+// contract in the header — marking them `unsafe fn` changes nothing for
+// those callers, and every dereference is already an explicit unsafe block.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::cell::RefCell;
 use std::ffi::{c_char, c_void, CStr, CString};
@@ -6,16 +10,18 @@ use std::panic::catch_unwind;
 use std::ptr;
 use std::rc::Rc;
 
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType, PremultipliedRgbaColor};
+use slint::platform::software_renderer::{
+    MinimalSoftwareWindow, PremultipliedRgbaColor, RepaintBufferType,
+};
 use slint::ComponentHandle;
 use slint::PhysicalSize;
 use slint_dart_interpreter::{Definition, Engine, Instance};
 
 thread_local! {
-    static LAST_ERROR: RefCell<Option<String>> = RefCell::new(None);
+    static LAST_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
     // Window created by the platform for the most recent instantiation.
     // ponytail: single-slot handoff; registry when multiple views needed
-    static NEXT_WINDOW: RefCell<Option<Rc<MinimalSoftwareWindow>>> = RefCell::new(None);
+    static NEXT_WINDOW: RefCell<Option<Rc<MinimalSoftwareWindow>>> = const { RefCell::new(None) };
 }
 
 fn set_error(msg: String) {
@@ -46,7 +52,6 @@ fn clear_error() {
 fn get_error() -> Option<String> {
     LAST_ERROR.with(|e| e.borrow_mut().take())
 }
-
 
 // === Engine ===
 
@@ -140,17 +145,18 @@ pub extern "C" fn slint_interpreter_definitions_count(list: SlintInterpreterDefi
     if list.0.is_null() {
         return 0;
     }
-    match catch_unwind(|| {
+    catch_unwind(|| {
         let defs = unsafe { &*(list.0 as *const Vec<Definition>) };
         defs.len() as u32
-    }) {
-        Ok(count) => count,
-        Err(_) => 0,
-    }
+    })
+    .unwrap_or_default()
 }
 
 #[no_mangle]
-pub extern "C" fn slint_interpreter_definitions_name(list: SlintInterpreterDefinitionList, index: u32) -> *mut c_char {
+pub extern "C" fn slint_interpreter_definitions_name(
+    list: SlintInterpreterDefinitionList,
+    index: u32,
+) -> *mut c_char {
     clear_error();
     if list.0.is_null() {
         return ptr::null_mut();
@@ -191,7 +197,8 @@ pub extern "C" fn slint_interpreter_definitions_free(list: SlintInterpreterDefin
 #[repr(transparent)]
 pub struct SlintInterpreterInstance(*mut c_void);
 
-pub type SlintInterpreterCallbackFn = extern "C" fn(user_data: *mut c_void, args_json: *const c_char);
+pub type SlintInterpreterCallbackFn =
+    extern "C" fn(user_data: *mut c_void, args_json: *const c_char);
 struct InstanceHandle {
     core: Instance,
     window: Rc<MinimalSoftwareWindow>,
@@ -261,7 +268,11 @@ pub extern "C" fn slint_interpreter_instance_free(instance: SlintInterpreterInst
 }
 
 #[no_mangle]
-pub extern "C" fn slint_interpreter_instance_set_size(instance: SlintInterpreterInstance, width: u32, height: u32) {
+pub extern "C" fn slint_interpreter_instance_set_size(
+    instance: SlintInterpreterInstance,
+    width: u32,
+    height: u32,
+) {
     if instance.0.is_null() {
         return;
     }
@@ -293,7 +304,9 @@ pub extern "C" fn slint_interpreter_instance_render(
             return false;
         }
 
-        let pixels = unsafe { std::slice::from_raw_parts_mut(buffer as *mut PremultipliedRgbaColor, len / 4) };
+        let pixels = unsafe {
+            std::slice::from_raw_parts_mut(buffer as *mut PremultipliedRgbaColor, len / 4)
+        };
 
         slint::platform::update_timers_and_animations();
 
@@ -329,7 +342,7 @@ pub extern "C" fn slint_interpreter_instance_pointer_event(
     let _ = catch_unwind(|| {
         if let Some(event) = slint_dart_core::events::pointer_event(kind, x, y, button, dx, dy) {
             let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
-            let _ = handle.window.dispatch_event(event);
+            handle.window.dispatch_event(event);
         }
     });
 }
@@ -347,13 +360,16 @@ pub extern "C" fn slint_interpreter_instance_key_event(
         if let Ok(text_str) = unsafe { CStr::from_ptr(text) }.to_str() {
             let event = slint_dart_core::events::key_event(text_str, pressed);
             let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
-            let _ = handle.window.dispatch_event(event);
+            handle.window.dispatch_event(event);
         }
     });
 }
 
 #[no_mangle]
-pub extern "C" fn slint_interpreter_instance_get_property(instance: SlintInterpreterInstance, name: *const c_char) -> *mut c_char {
+pub extern "C" fn slint_interpreter_instance_get_property(
+    instance: SlintInterpreterInstance,
+    name: *const c_char,
+) -> *mut c_char {
     clear_error();
     if instance.0.is_null() || name.is_null() {
         return ptr::null_mut();

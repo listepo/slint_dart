@@ -11,3 +11,6 @@ crate-type = ["cdylib", "staticlib"]
 slint-dart-core = { path = "../../slint/rust" }
 slint-dart-interpreter = { path = "../interpreter" }
 slint = { version = "1", default-features = false, features = ["compat-1-2", "std", "renderer-software", "software-renderer-systemfonts"] }
+
+[lints]
+workspace = true

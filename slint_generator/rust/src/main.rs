@@ -136,8 +136,8 @@ fn type_json(t: &Type) -> Result<Value, String> {
         }
         other => {
             return Err(format!(
-                "unsupported type `{other}` (supported: numbers, string, bool, named structs, arrays)"
-            ))
+            "unsupported type `{other}` (supported: numbers, string, bool, named structs, arrays)"
+        ))
         }
     })
 }

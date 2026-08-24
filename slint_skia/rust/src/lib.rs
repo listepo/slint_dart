@@ -1,9 +1,9 @@
+use slint_dart_interpreter::{Definition, Engine as DartEngine, Instance};
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
 use std::panic;
 use std::ptr;
-use std::os::raw::c_char;
-use slint_dart_interpreter::{Engine as DartEngine, Definition, Instance};
 
 // Thread-local error storage
 thread_local! {
@@ -48,7 +48,8 @@ pub extern "C" fn slint_skia_engine_new() -> *mut c_void {
     panic::catch_unwind(|| {
         let engine = DartEngine::new();
         Box::into_raw(Box::new(OpaqueEngine(engine))) as *mut c_void
-    }).unwrap_or_else(|_| set_error("Engine creation panic"))
+    })
+    .unwrap_or_else(|_| set_error("Engine creation panic"))
 }
 
 #[no_mangle]
@@ -94,7 +95,8 @@ pub extern "C" fn slint_skia_engine_compile(
             }
             Err(e) => set_error(e),
         }
-    }).unwrap_or_else(|_| set_error("Compile panic"))
+    })
+    .unwrap_or_else(|_| set_error("Compile panic"))
 }
 
 #[no_mangle]
@@ -105,14 +107,12 @@ pub extern "C" fn slint_skia_definitions_count(engine: *mut c_void) -> usize {
         }
         // ponytail: definitions tracking per-engine when needed; stub for now
         0
-    }).unwrap_or(0)
+    })
+    .unwrap_or(0)
 }
 
 #[no_mangle]
-pub extern "C" fn slint_skia_definitions_name(
-    _engine: *mut c_void,
-    _index: usize,
-) -> *mut c_char {
+pub extern "C" fn slint_skia_definitions_name(_engine: *mut c_void, _index: usize) -> *mut c_char {
     // ponytail: full definition enumeration when needed
     ptr::null_mut()
 }
@@ -134,7 +134,8 @@ pub extern "C" fn slint_skia_instantiate(definition: *mut c_void) -> *mut c_void
             Ok(inst) => Box::into_raw(Box::new(OpaqueInstance(inst))) as *mut c_void,
             Err(e) => set_error(e),
         }
-    }).unwrap_or_else(|_| set_error("Instantiate panic"))
+    })
+    .unwrap_or_else(|_| set_error("Instantiate panic"))
 }
 
 #[no_mangle]
@@ -162,7 +163,8 @@ pub extern "C" fn slint_skia_instance_set_size(
         // ponytail: size plumbing when window adapter is implemented
         // For now, silently succeed
         true
-    }).unwrap_or_else(|_| {
+    })
+    .unwrap_or_else(|_| {
         set_error("Set size panic");
         false
     })
@@ -180,7 +182,8 @@ pub extern "C" fn slint_skia_instance_render(instance: *mut c_void) -> bool {
         // bound to platform surface (Metal on macOS/iOS, GL/Vulkan on Android/Linux/Windows),
         // frame exported to Flutter as external texture.
         false
-    }).unwrap_or_else(|_| {
+    })
+    .unwrap_or_else(|_| {
         set_error("Render panic");
         false
     })
@@ -195,7 +198,8 @@ pub extern "C" fn slint_skia_instance_texture_id(instance: *mut c_void) -> i64 {
         }
         // ponytail: external texture plumbing when renderer is integrated
         -1
-    }).unwrap_or_else(|_| {
+    })
+    .unwrap_or_else(|_| {
         set_error("Texture ID panic");
         -1
     })
@@ -220,7 +224,8 @@ pub extern "C" fn slint_skia_instance_pointer_event(
         let inst = unsafe { &*(instance as *mut OpaqueInstance) };
         // ponytail: event routing when window adapter exists
         true
-    }).unwrap_or_else(|_| {
+    })
+    .unwrap_or_else(|_| {
         set_error("Pointer event panic");
         false
     })
@@ -245,7 +250,8 @@ pub extern "C" fn slint_skia_instance_key_event(
         let inst = unsafe { &*(instance as *mut OpaqueInstance) };
         // ponytail: event routing when window adapter exists
         true
-    }).unwrap_or_else(|_| {
+    })
+    .unwrap_or_else(|_| {
         set_error("Key event panic");
         false
     })
@@ -275,7 +281,8 @@ pub extern "C" fn slint_skia_instance_get_property(
             },
             Err(e) => set_error(e) as *mut c_char,
         }
-    }).unwrap_or_else(|_| set_error("Get property panic") as *mut c_char)
+    })
+    .unwrap_or_else(|_| set_error("Get property panic") as *mut c_char)
 }
 
 #[no_mangle]
@@ -314,7 +321,8 @@ pub extern "C" fn slint_skia_instance_set_property(
                 false
             }
         }
-    }).unwrap_or_else(|_| {
+    })
+    .unwrap_or_else(|_| {
         set_error("Set property panic");
         false
     })
@@ -350,5 +358,6 @@ pub extern "C" fn slint_skia_instance_invoke(
             },
             Err(e) => set_error(e) as *mut c_char,
         }
-    }).unwrap_or_else(|_| set_error("Invoke panic") as *mut c_char)
+    })
+    .unwrap_or_else(|_| set_error("Invoke panic") as *mut c_char)
 }

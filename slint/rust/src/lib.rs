@@ -34,7 +34,10 @@ pub mod events {
                     3 => PointerEventButton::Middle,
                     _ => return None,
                 };
-                Some(WindowEvent::PointerPressed { position, button: btn })
+                Some(WindowEvent::PointerPressed {
+                    position,
+                    button: btn,
+                })
             }
             2 => {
                 let btn = match button {
@@ -43,7 +46,10 @@ pub mod events {
                     3 => PointerEventButton::Middle,
                     _ => return None,
                 };
-                Some(WindowEvent::PointerReleased { position, button: btn })
+                Some(WindowEvent::PointerReleased {
+                    position,
+                    button: btn,
+                })
             }
             3 => Some(WindowEvent::PointerScrolled {
                 position,

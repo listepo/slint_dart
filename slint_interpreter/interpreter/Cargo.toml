@@ -9,3 +9,6 @@ slint = { version = "1", default-features = false, features = ["compat-1-2", "st
 slint-interpreter = { version = "1", default-features = false, features = ["compat-1-2", "std"] }
 spin_on = "0.1"
 serde_json = "1"
+
+[lints]
+workspace = true

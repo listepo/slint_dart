@@ -16,7 +16,17 @@ mise exec -- flutter build macos --release  # e2e: codegen + cargo + link hook
 mise exec -- dart test                    # in a package dir: its unit tests
 mise exec -- dart analyze .               # per package; workspace-wide is noisy (slint_skia stubs)
 cd example && mise exec -- dart run build_runner build   # regenerate *.g.dart after editing a .slint
+cargo fmt --all                                          # Rust formatting (rustfmt defaults, no config file)
+cargo clippy --workspace --exclude slint-skia-ffi --all-targets   # Rust linting
 ```
+
+Keep `cargo fmt --all --check` and that clippy invocation clean. Lint levels
+live in the root `Cargo.toml` `[workspace.lints.*]` tables; members opt in
+with `[lints] workspace = true`. `slint-skia-ffi` is always excluded from
+clippy/test/build — compiling it builds all of Skia (CI-only). FFI crates
+allow `clippy::not_unsafe_ptr_arg_deref` at crate level: C ABI entry points
+are never called from Rust, and each dereference is an explicit unsafe
+block.
 
 Regenerate FFI bindings only after changing a Rust C ABI:
 

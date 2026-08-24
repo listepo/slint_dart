@@ -6,3 +6,6 @@ publish = false
 
 [dependencies]
 slint = { version = "1", default-features = false, features = ["compat-1-2", "std"] }
+
+[lints]
+workspace = true
