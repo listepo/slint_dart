@@ -19,10 +19,14 @@ void main() {
     final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
 
-    expect(defs, isNotEmpty);
-    expect(defs.first.name, 'TodoApp');
+    expect(
+      [for (final d in defs) d.name],
+      containsAll(['TodoApp', 'UnusedGadget']),
+    );
 
-    defs.first.dispose();
+    for (final d in defs) {
+      d.dispose();
+    }
     engine.dispose();
   });
 
@@ -37,7 +41,8 @@ void main() {
     final source = slintFile.readAsStringSync();
     final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate();
+    final component =
+        defs.firstWhere((d) => d.name == 'TodoApp').instantiate();
 
     // Set model
     final model = [
@@ -55,7 +60,9 @@ void main() {
     expect((back[1] as Map<Object?, Object?>)['checked'], true);
 
     component.dispose();
-    defs.first.dispose();
+    for (final d in defs) {
+      d.dispose();
+    }
     engine.dispose();
   });
 
@@ -70,7 +77,8 @@ void main() {
     final source = slintFile.readAsStringSync();
     final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate();
+    final component =
+        defs.firstWhere((d) => d.name == 'TodoApp').instantiate();
 
     final received = <Object?>[];
     component.setCallbackHandler('add-todo', (args) {
@@ -82,7 +90,9 @@ void main() {
     expect(received, ['from test']);
 
     component.dispose();
-    defs.first.dispose();
+    for (final d in defs) {
+      d.dispose();
+    }
     engine.dispose();
   });
 
@@ -97,7 +107,8 @@ void main() {
     final source = slintFile.readAsStringSync();
     final engine = InterpreterSlintEngine();
     final defs = await engine.compile(source, path: 'todo.slint');
-    final component = defs.first.instantiate();
+    final component =
+        defs.firstWhere((d) => d.name == 'TodoApp').instantiate();
 
     final target = component.renderTarget;
     target.resize(400, 600);
@@ -108,7 +119,9 @@ void main() {
     expect(pixels.any((b) => b != 0), isTrue, reason: 'frame should have content');
 
     component.dispose();
-    defs.first.dispose();
+    for (final d in defs) {
+      d.dispose();
+    }
     engine.dispose();
   });
 }

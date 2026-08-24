@@ -10,7 +10,7 @@ import 'todo.aot.g.dart' as aot;
 
 /// `todo.slint`, embedded so interpreter backends can compile it at runtime.
 const _source =
-    "import { Button, CheckBox, LineEdit, ListView, VerticalBox, HorizontalBox } from \"std-widgets.slint\";\n\nexport struct TodoItem {\n    title: string,\n    checked: bool,\n}\n\nexport component TodoApp inherits Window {\n    preferred-width: 400px;\n    preferred-height: 600px;\n    title: \"Slint ♥ Flutter — Todo\";\n\n    // Host (Dart) owns the list; this default renders before the host syncs.\n    in property <[TodoItem]> todo-model: [\n        { title: \"Wire Slint into Flutter\", checked: true },\n        { title: \"Render this list\", checked: false },\n    ];\n\n    // Named arguments carry through to the generated Dart signatures.\n    callback add-todo(title: string);\n    callback toggle-todo(index: int, checked: bool);\n    callback remove-done();\n\n    VerticalBox {\n        HorizontalBox {\n            padding: 0;\n            edit := LineEdit {\n                placeholder-text: \"What needs to be done?\";\n                accepted(text) => { root.add-todo(text); self.text = \"\"; }\n            }\n            Button {\n                text: \"Add\";\n                primary: true;\n                clicked => { root.add-todo(edit.text); edit.text = \"\"; }\n            }\n        }\n        ListView {\n            for item[index] in root.todo-model: HorizontalBox {\n                padding: 0;\n                CheckBox {\n                    text: item.title;\n                    checked: item.checked;\n                    toggled => { root.toggle-todo(index, self.checked); }\n                }\n            }\n        }\n        Button {\n            text: \"Remove done items\";\n            clicked => { root.remove-done(); }\n        }\n    }\n}\n";
+    "import { Button, CheckBox, LineEdit, ListView, VerticalBox, HorizontalBox } from \"std-widgets.slint\";\n\nexport struct TodoItem {\n    title: string,\n    checked: bool,\n}\n\n// Deliberately unreferenced by the Dart code: exists to prove the release\n// link hook tree-shakes components without a recorded use out of the dylib.\nexport component UnusedGadget inherits Window {\n    preferred-width: 200px;\n    preferred-height: 100px;\n    title: \"Never shipped\";\n\n    in property <string> label: \"unused\";\n    callback poke();\n\n    Text { text: root.label; }\n}\n\nexport component TodoApp inherits Window {\n    preferred-width: 400px;\n    preferred-height: 600px;\n    title: \"Slint ♥ Flutter — Todo\";\n\n    // Host (Dart) owns the list; this default renders before the host syncs.\n    in property <[TodoItem]> todo-model: [\n        { title: \"Wire Slint into Flutter\", checked: true },\n        { title: \"Render this list\", checked: false },\n    ];\n\n    // Named arguments carry through to the generated Dart signatures.\n    callback add-todo(title: string);\n    callback toggle-todo(index: int, checked: bool);\n    callback remove-done();\n\n    VerticalBox {\n        HorizontalBox {\n            padding: 0;\n            edit := LineEdit {\n                placeholder-text: \"What needs to be done?\";\n                accepted(text) => { root.add-todo(text); self.text = \"\"; }\n            }\n            Button {\n                text: \"Add\";\n                primary: true;\n                clicked => { root.add-todo(edit.text); edit.text = \"\"; }\n            }\n        }\n        ListView {\n            for item[index] in root.todo-model: HorizontalBox {\n                padding: 0;\n                CheckBox {\n                    text: item.title;\n                    checked: item.checked;\n                    toggled => { root.toggle-todo(index, self.checked); }\n                }\n            }\n        }\n        Button {\n            text: \"Remove done items\";\n            clicked => { root.remove-done(); }\n        }\n    }\n}\n";
 
 /// True in release and profile builds — the same condition the build hooks
 /// use (`linkingEnabled`) to bundle the AOT dylib instead of the interpreter,
@@ -124,4 +124,54 @@ class TodoApp {
   /// Invokes the `toggle-todo` callback.
   void invokeToggleTodo(int index, bool checked) =>
       component.invokeCallback('toggle-todo', [index, checked]);
+}
+
+/// Typed wrapper for the `UnusedGadget` component of `todo.slint`.
+///
+/// ```dart
+/// final app = await UnusedGadget.create();
+/// ```
+class UnusedGadget {
+  UnusedGadget(this.component);
+
+  /// Name of the exported component this wrapper drives.
+  static const componentName = 'UnusedGadget';
+
+  /// The `.slint` source this wrapper was generated from.
+  static const slintSource = _source;
+
+  /// Backend [create] uses when given none —
+  /// the AOT-compiled component in release and profile builds, the
+  /// interpreter in debug, matching the dylib the build bundles.
+  ///
+  /// Created once, on first use, and shared by every instance.
+  static final SlintComponentFactory defaultFactory = _useCompiled
+      ? aot.unusedGadgetFactory
+      : SlintInterpreterFactory();
+
+  /// Instantiates `UnusedGadget` through [factory], or [defaultFactory].
+  static Future<UnusedGadget> create([SlintComponentFactory? factory]) async =>
+      UnusedGadget(
+        await (factory ?? defaultFactory).instantiate(_source, componentName),
+      );
+
+  /// The backing instance — use it for untyped property/callback access.
+  final SlintSoftwareComponent component;
+
+  SlintSoftwareRenderTarget get renderTarget => component.renderTarget;
+
+  void dispose() => component.dispose();
+
+  String get label => component.getProperty('label') as String;
+  set label(String value) => component.setProperty('label', value);
+
+  /// Handles the `poke` callback; replaces any previous handler.
+  void onPoke(void Function() handler) =>
+      component.setCallbackHandler('poke', (arguments) {
+        handler();
+        return null;
+      });
+
+  /// Invokes the `poke` callback.
+  void invokePoke() => component.invokeCallback('poke', []);
 }

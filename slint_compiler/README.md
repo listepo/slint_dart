@@ -109,11 +109,17 @@ prove dead:
   `LinkerOptions.treeshake`: only the C symbols of live components (plus the
   two shared ones) are kept; `-dead_strip` / `--gc-sections` discards the
   rest, including each dead component's slint-build generated code.
-- When the toolchain provides no recordings (`recordedUses == null`, the
-  state of `flutter build` today), every component is kept — the output then
-  matches what a plain cdylib build produced. Same if a recording references
-  none of the externs, which would mean the recording missed the FFI
-  tear-offs; dropping everything on that evidence would break the app.
+- Flutter records usages behind its `record use experiment` flag — enable it
+  per build with `FLUTTER_RECORD_USE=true flutter build ...` or persistently
+  with `flutter config --enable-record-use`. The example's `UnusedGadget`
+  component exists to prove the mechanism: exported and compiled like any
+  other, referenced by no Dart code, and absent from the shipped dylib when
+  the flag is on (`slint_aot_unused_gadget_*` resolves to nothing).
+- When the toolchain provides no recordings (`recordedUses == null`, a
+  `flutter build` without the flag), every component is kept — the output
+  then matches what a plain cdylib build produced. Same if a recording
+  references none of the externs, which would mean the recording missed the
+  FFI tear-offs; dropping everything on that evidence would break the app.
 
 The linker line for the relink (frameworks, system libs) is not guessed: the
 build hook runs cargo with `RUSTFLAGS=--print=native-static-libs` and passes

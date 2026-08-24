@@ -5,6 +5,19 @@ export struct TodoItem {
     checked: bool,
 }
 
+// Deliberately unreferenced by the Dart code: exists to prove the release
+// link hook tree-shakes components without a recorded use out of the dylib.
+export component UnusedGadget inherits Window {
+    preferred-width: 200px;
+    preferred-height: 100px;
+    title: "Never shipped";
+
+    in property <string> label: "unused";
+    callback poke();
+
+    Text { text: root.label; }
+}
+
 export component TodoApp inherits Window {
     preferred-width: 400px;
     preferred-height: 600px;

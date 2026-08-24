@@ -8,8 +8,17 @@ The Rust crates are built automatically by each package's `hook/build.dart`
 (Dart native assets / code assets) — no manual `cargo build`, no dylib paths.
 In release/profile builds the app's `hook/link.dart` then links the AOT dylib
 from the staticlib the build hook produced, tree-shaking components no
-reachable Dart code uses (`@RecordUse` recordings, when the toolchain
-provides them).
+reachable Dart code uses (`@RecordUse` recordings). Recording sits behind a
+Flutter experiment flag:
+
+```bash
+FLUTTER_RECORD_USE=true flutter build macos --release
+```
+
+`todo.slint` deliberately exports an `UnusedGadget` component nothing
+references: with the flag on, its `slint_aot_unused_gadget_*` symbols are
+absent from the shipped `slint_dart_aot` dylib; without it (or with
+`recorded_uses` unavailable) every component is kept.
 
 ## Codegen
 
