@@ -23,7 +23,7 @@ absent from the shipped `slint_dart_aot` dylib; without it (or with
 ## Codegen
 
 ```bash
-cd example && dart run build_runner build
+cd examples/todo && dart run build_runner build
 ```
 
 Two files per `.slint`, both regenerated after editing `lib/todo.slint`:
@@ -55,7 +55,7 @@ Compiles the source embedded in `todo.g.dart` at runtime and renders via
 `slint_interpreter_ffi`.
 
 ```bash
-cd example && mise exec -- flutter run
+cd examples/todo && mise exec -- flutter run
 ```
 
 ### Compiled — release/profile builds
@@ -64,7 +64,7 @@ Binds straight to the AOT-compiled component, no interpreter. The bundle
 ships only `slint_dart_aot`.
 
 ```bash
-cd example && mise exec -- flutter run --release
+cd examples/todo && mise exec -- flutter run --release
 ```
 
 ## Test
@@ -72,7 +72,7 @@ cd example && mise exec -- flutter run --release
 Both backends are tested:
 
 ```bash
-cd example && mise exec -- flutter test
+cd examples/todo && mise exec -- flutter test
 ```
 
 - `test/todo_typed_test.dart` — the generated `TodoApp` over the interpreter

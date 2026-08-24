@@ -9,10 +9,10 @@ void main() {
     var slintPath = '$cwd/lib/todo.slint';
     if (!File(slintPath).existsSync()) {
       // Try one level up (in case test is run from repo root)
-      slintPath = '$cwd/example/lib/todo.slint';
+      slintPath = '$cwd/examples/todo/lib/todo.slint';
     }
     if (!File(slintPath).existsSync()) {
-      throw StateError('todo.slint not found. Checked: $cwd/lib/todo.slint and $cwd/example/lib/todo.slint');
+      throw StateError('todo.slint not found. Checked: $cwd/lib/todo.slint and $cwd/examples/todo/lib/todo.slint');
     }
 
     final source = File(slintPath).readAsStringSync();
@@ -34,7 +34,7 @@ void main() {
     final cwd = Directory.current.path;
     var slintPath = '$cwd/lib/todo.slint';
     if (!File(slintPath).existsSync()) {
-      slintPath = '$cwd/example/lib/todo.slint';
+      slintPath = '$cwd/examples/todo/lib/todo.slint';
     }
     var slintFile = File(slintPath);
 
@@ -70,7 +70,7 @@ void main() {
     final cwd = Directory.current.path;
     var slintPath = '$cwd/lib/todo.slint';
     if (!File(slintPath).existsSync()) {
-      slintPath = '$cwd/example/lib/todo.slint';
+      slintPath = '$cwd/examples/todo/lib/todo.slint';
     }
     var slintFile = File(slintPath);
 
@@ -100,7 +100,7 @@ void main() {
     final cwd = Directory.current.path;
     var slintPath = '$cwd/lib/todo.slint';
     if (!File(slintPath).existsSync()) {
-      slintPath = '$cwd/example/lib/todo.slint';
+      slintPath = '$cwd/examples/todo/lib/todo.slint';
     }
     var slintFile = File(slintPath);
 

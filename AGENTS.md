@@ -11,11 +11,11 @@ invariants, and the traps.
 Flutter and Dart run through mise; Rust is a plain rustup install.
 
 ```bash
-mise exec -- flutter test                 # in example/: both backends' tests
+mise exec -- flutter test                 # in examples/todo/: both backends' tests
 mise exec -- flutter build macos --release  # e2e: codegen + cargo + link hook
 mise exec -- dart test                    # in a package dir: its unit tests
 mise exec -- dart analyze .               # per package; workspace-wide is noisy (slint_skia stubs)
-cd example && mise exec -- dart run build_runner build   # regenerate *.g.dart after editing a .slint
+cd examples/todo && mise exec -- dart run build_runner build   # regenerate *.g.dart after editing a .slint
 cargo fmt --all                                          # Rust formatting (rustfmt defaults, no config file)
 cargo clippy --workspace --exclude slint-skia-ffi --all-targets   # Rust linting
 ```
@@ -45,7 +45,7 @@ release builds (fat LTO) take minutes; run them in the background.
 
 - **Backend follows build mode.** Debug (incl. `flutter test`) uses the
   interpreter; release/profile uses the AOT dylib. The hooks branch on
-  `linkingEnabled`. AOT tests in `example/test` self-skip under
+  `linkingEnabled`. AOT tests in `examples/todo/test` self-skip under
   `flutter test`; the release build is their e2e check.
 - **The AOT ABI contract lives in one place**:
   `slint_compiler/lib/src/generator.dart` (`aotComponentOps`,
@@ -61,7 +61,7 @@ release builds (fat LTO) take minutes; run them in the background.
   `flutter config --enable-record-use`); without it, or when recordings hit
   zero externs, the hook deliberately keeps every component — never "fix"
   those keep-all fallbacks away.
-- **`UnusedGadget` in `example/lib/todo.slint` is a deliberate canary**, not
+- **`UnusedGadget` in `examples/todo/lib/todo.slint` is a deliberate canary**, not
   dead code: it proves tree-shaking by being absent
   (`slint_aot_unused_gadget_*`) from the shipped dylib when the flag is on.
   Do not remove it.

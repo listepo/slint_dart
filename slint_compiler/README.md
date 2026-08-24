@@ -131,7 +131,7 @@ The linked dylib ships inside the app bundle, so the generated crate sets a
 size-tuned release profile and the link hook strips the result (`-S` debug
 info, `-x` local symbols — cargo's `strip = "symbols"` equivalent, applied at
 the final link because the staticlib must keep symbols for tree-shaking).
-Measured on `example/` (per architecture, aarch64, Slint 1.17.1):
+Measured on `examples/todo/` (per architecture, aarch64, Slint 1.17.1):
 
 | configuration                                  | dylib | full 800×600 repaint |
 | ---------------------------------------------- | ----- | -------------------- |

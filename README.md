@@ -12,6 +12,7 @@
 | `slint_compiler/` | `slint_compiler` | — | AOT backend, no interpreter: a build_runner builder emits `foo.aot.g.dart` — only the `@Native` externs and a `SlintCompilerFactory` per component, with the component/render-target plumbing hand-written in `runtime.dart`. The app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into a staticlib; the app's link hook (`linkSlintAot`) links it into the one code asset those externs bind to, tree-shaking components no reachable Dart code uses (`@RecordUse` + `package:record_use` + `CLinker`). |
 | `slint_skia/` | `slint_skia` | `slint-skia-ffi` | Interpreter + `i-slint-renderer-skia` (GPU) → Flutter external texture. GPU surface plumbing stubbed. |
 | `slint_build/` | `slint_build` | — | Shared hook plumbing: cargo builds through a `bazel_worker` persistent worker, target-triple mapping, cross-compile env, cache invalidation. Used by every `hook/build.dart`. |
+| `examples/todo/` | `todo_example` | — | Todo demo: one typed API (`TodoApp`) over both backends, the app's `hook/build.dart` + `hook/link.dart`, and the `UnusedGadget` tree-shaking canary. |
 
 One typed API, two independent backends behind it:
 
