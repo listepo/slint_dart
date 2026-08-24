@@ -13,6 +13,8 @@ Flutter and Dart run through mise; Rust is a plain rustup install.
 ```bash
 mise exec -- flutter test                 # in examples/todo/: both backends' tests
 mise exec -- flutter build macos --release  # e2e: codegen + cargo + link hook
+mise exec -- flutter build ios --release --no-codesign            # iOS (device, unsigned)
+mise exec -- flutter build apk --release --target-platform android-arm64  # Android
 mise exec -- dart test                    # in a package dir: its unit tests
 mise exec -- dart analyze .               # per package; workspace-wide is noisy (slint_skia stubs)
 cd examples/todo && mise exec -- dart run build_runner build   # regenerate *.g.dart after editing a .slint

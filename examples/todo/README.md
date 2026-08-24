@@ -67,6 +67,46 @@ ships only `slint_dart_aot`.
 cd examples/todo && mise exec -- flutter run --release
 ```
 
+## Platforms
+
+macOS, iOS, and Android all build and run. Each platform's Rust cross-compile
+is driven by the same hooks — the target triple, the NDK clang wrapper on
+Android, and the deployment target on Apple platforms come from the build
+input, so there is nothing per-platform to configure:
+
+```bash
+mise exec -- flutter build macos --release
+mise exec -- flutter build ios --release --no-codesign
+mise exec -- flutter build apk --release --target-platform android-arm64
+```
+
+Component tree-shaking works on every one: the link hook uses `-dead_strip`
+with an exported-symbols list on Apple platforms and `--gc-sections` with a
+version script on Android, and `slint_aot_unused_gadget_*` is absent from the
+shipped library in all three.
+
+### Measured sizes
+
+One `.slint` file, one screen, arm64 unless noted. Native library is the
+Slint code asset the bundle ships — the whole difference between the two
+backends:
+
+| Build | macOS | iOS | Android |
+| ----- | ----- | --- | ------- |
+| Release app (AOT) | 58.5 MB | 23.9 MB | 25.3 MB (APK) |
+| ↳ `slint_dart_aot` | 20.1 MB (universal, 2 slices) | 9.7 MB | 9.9 MB |
+| Debug app (interpreter) | 134.7 MB | 127.1 MB | 96.8 MB (APK) |
+| ↳ `slint_interpreter_ffi` | 26.9 MB | 27.1 MB | 19.6 MB |
+
+The AOT library is roughly 2.8× smaller than the interpreter one, because it
+carries compiled components instead of the `.slint` compiler. The rest of
+each app is Flutter itself: `Flutter.framework`/`libflutter.so` is 10–39 MB
+depending on platform and mode, and debug builds add an unstripped Dart
+kernel plus — on Android — a 15 MB Vulkan validation layer.
+
+macOS is the outlier because `flutter build macos` produces a universal
+binary; the per-architecture figure is about half.
+
 ## Test
 
 Both backends are tested:

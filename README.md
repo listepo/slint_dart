@@ -68,6 +68,18 @@ hooks:
       profile: debug   # or release (default)
 ```
 
+## Platforms
+
+macOS, iOS, and Android build and run today (verified on device simulators
+for both mobile platforms, in both backends). The hooks derive everything
+per-platform from the build input — Rust target triple, Android NDK clang
+wrapper and API level, Apple deployment targets — so no platform-specific
+configuration lives in the app. Linux and Windows have target-triple
+mappings but are untested.
+
+Per-platform build commands and a measured size comparison live in
+[`examples/todo/README.md`](examples/todo/README.md).
+
 ## Toolchain
 
 - Flutter via mise: `mise exec -- flutter ...`
