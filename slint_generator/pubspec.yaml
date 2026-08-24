@@ -9,6 +9,8 @@ environment:
 
 dependencies:
   build: ^4.0.10
+  dart_style: ^3.1.0
+  pub_semver: ^2.1.0
   slint: ^0.1.0
   slint_build: ^0.1.0
   yaml: ^3.1.2

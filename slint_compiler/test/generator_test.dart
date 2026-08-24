@@ -25,7 +25,8 @@ final _schema = SlintSchema([
       PropertySchema('title', TypeRef('string')),
     ],
     [
-      CallbackSchema('add-todo', [TypeRef('string')], null),
+      CallbackSchema('add-todo', [PropertySchema('text', TypeRef('string'))],
+          null),
     ],
   ),
 ]);
@@ -86,6 +87,25 @@ void main() {
       }
     });
 
+    test('anchors component liveness with @RecordUse on the _new extern', () {
+      final out = _dart(_schema);
+      // The link hook drops a component's native code when no reachable code
+      // records a tear-off of this extern — so the annotation must sit
+      // directly on it, and the manifest must predict its exact Dart name.
+      expect(
+        out,
+        contains('@RecordUse()\n'
+            '@ffi.Native<ffi.Pointer<ffi.Void> Function()>'
+            "(symbol: 'slint_aot_todo_app_new')"),
+      );
+      expect(
+        out,
+        contains('external ffi.Pointer<ffi.Void> '
+            '${aotNewExternName('TodoApp')}();'),
+      );
+      expect(out, contains("import 'package:meta/meta.dart' show RecordUse;"));
+    });
+
     test('emits one factory per component', () {
       final out = _dart(SlintSchema([
         ComponentSchema('TodoApp', const [], const []),
@@ -139,6 +159,22 @@ void main() {
       final prefix = 'slint_aot_${snakeFromPascal('TodoApp')}';
       expect(_dart(_schema), contains("symbol: '${prefix}_new'"));
       expect(libRs, contains('pub extern "C" fn ${prefix}_new'));
+    });
+
+    test('the link manifest predicts exactly the exported symbols', () {
+      // The link hook keeps only manifest-listed symbols: a symbol the glue
+      // exports but the manifest misses would be tree-shaken away (runtime
+      // lookup failure); one the manifest predicts but the glue lacks is a
+      // -u flag on a missing symbol (link failure).
+      final exported = _symbols(
+        libRs,
+        RegExp(r'pub extern "C" fn (slint_aot_\w+)'),
+      );
+      final manifest = {
+        ...aotSharedSymbols,
+        ...aotComponentSymbols('TodoApp'),
+      };
+      expect(exported, manifest);
     });
   });
 }

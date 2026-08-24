@@ -6,6 +6,10 @@ or **compiled** (FFI bindings to precompiled Rust).
 
 The Rust crates are built automatically by each package's `hook/build.dart`
 (Dart native assets / code assets) — no manual `cargo build`, no dylib paths.
+In release/profile builds the app's `hook/link.dart` then links the AOT dylib
+from the staticlib the build hook produced, tree-shaking components no
+reachable Dart code uses (`@RecordUse` recordings, when the toolchain
+provides them).
 
 ## Codegen
 
@@ -16,7 +20,9 @@ cd example && dart run build_runner build
 Two files per `.slint`, both regenerated after editing `lib/todo.slint`:
 
 - `lib/todo.g.dart` — `slint_generator`: the typed `TodoApp` (properties,
-  callbacks, render target) plus the embedded `.slint` source. Backend-agnostic.
+  callbacks, render target), the `TodoItem` value class generated from the
+  `.slint` struct, plus the embedded source. Backend-agnostic — `main.dart`
+  holds a `List<TodoItem>` and never touches a raw map.
 - `lib/todo.aot.g.dart` — `slint_compiler`: the `@Native` externs and
   `todoAppFactory` for the AOT backend.
 

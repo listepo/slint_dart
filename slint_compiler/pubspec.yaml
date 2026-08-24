@@ -11,7 +11,9 @@ dependencies:
   build: ^4.0.10
   code_assets: ^1.2.1
   ffi: ^2.1.0
-  hooks: ^2.0.0
+  hooks: ^2.2.0
+  native_toolchain_c: ^0.19.3
+  record_use: ^1.1.1
   slint: ^0.1.0
   slint_build: ^0.1.0
   slint_generator: ^0.1.0

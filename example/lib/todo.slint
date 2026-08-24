@@ -16,8 +16,9 @@ export component TodoApp inherits Window {
         { title: "Render this list", checked: false },
     ];
 
-    callback add-todo(string);
-    callback toggle-todo(int, bool);
+    // Named arguments carry through to the generated Dart signatures.
+    callback add-todo(title: string);
+    callback toggle-todo(index: int, checked: bool);
     callback remove-done();
 
     VerticalBox {

@@ -51,7 +51,10 @@ publish = false
 [workspace]
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+# Intermediate only: the app's link hook (slint_compiler/aot_link.dart) links
+# the final dylib from this archive, dropping components no reachable Dart
+# code uses (per @RecordUse recordings).
+crate-type = ["staticlib"]
 
 [dependencies]
 slint = { version = "=$slintVersion", default-features = false, features = ["compat-1-2", "std", "renderer-software", "software-renderer-systemfonts"] }
@@ -62,7 +65,19 @@ serde_json = "1"
 slint-build = "=$slintVersion"
 
 [profile.release]
+# Load-bearing: the glue wraps every entry point in catch_unwind to turn a
+# Slint panic into a Dart-visible error. "abort" would kill the host process.
 panic = "unwind"
+# The linked dylib ships in the app bundle, so size matters. Measured on the
+# example (per-arch, aarch64): 13M default -> 9.3M with LTO + stripping.
+#
+# opt-level stays at the release default of 3. "z" is ~2M smaller but
+# de-vectorises the software renderer's pixel loops, which are the hot path:
+# a full 800x600 repaint went from 399us to 1075us (2.7x) on the example.
+lto = "fat"
+codegen-units = 1
+# No `strip` here: the archive must keep its symbols for the link hook's
+# tree-shaking link, which strips the final dylib instead.
 ''');
 
   final compiles = files
@@ -203,7 +218,7 @@ pub extern "C" fn slint_aot_last_error() -> *mut c_char {
       }
       for (final cb in c.callbacks) {
         for (final a in cb.args) {
-          _collectStructs(a, structs);
+          _collectStructs(a.type, structs);
         }
         if (cb.returnType != null) _collectStructs(cb.returnType!, structs);
       }
@@ -336,7 +351,7 @@ String _componentGlue(ComponentSchema c) {
   final invokeArms = c.callbacks.map((cb) {
     final argLets = [
       for (var i = 0; i < cb.args.length; i++)
-        '                let a$i = ${_fromJson('args.get($i).unwrap_or(&Json::Null)', cb.args[i])};',
+        '                let a$i = ${_fromJson('args.get($i).unwrap_or(&Json::Null)', cb.args[i].type)};',
     ].join('\n');
     final call =
         'handle.inst.invoke_${rustIdent(cb.name)}(${[for (var i = 0; i < cb.args.length; i++) 'a$i'].join(', ')})';
@@ -353,7 +368,7 @@ $body
   final callbackArms = c.callbacks.map((cb) {
     final params = [for (var i = 0; i < cb.args.length; i++) 'arg$i'].join(', ');
     final argsJson = [
-      for (var i = 0; i < cb.args.length; i++) _toJson('arg$i', cb.args[i]),
+      for (var i = 0; i < cb.args.length; i++) _toJson('arg$i', cb.args[i].type),
     ].join(', ');
     final ret = cb.returnType == null ? '' : '\n                    Default::default()';
     return '''

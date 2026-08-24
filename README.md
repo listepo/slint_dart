@@ -8,8 +8,8 @@
 |---|---|---|---|
 | `slint/` | `slint` | `slint-dart-core` | Backend-agnostic core: Dart API (engine, component, render targets, input events), the `SlintView` widget, and a shared Rust events module mapping the FFI event encoding onto `slint::platform::WindowEvent`. No interpreter, no codegen. |
 | `slint_interpreter/` | `slint_interpreter` | `slint-interpreter-ffi` (`rust/`), `slint-dart-interpreter` (`interpreter/`) | Runtime `.slint` path: the nested `interpreter/` crate wraps `slint-interpreter` (compile, instantiate, JSON value bridge, callbacks) behind a renderer-agnostic API; `rust/` adds the software renderer (`slint::platform::software_renderer`) and the C ABI → RGBA frames. |
-| `slint_generator/` | `slint_generator` | `slint-introspect` | Shared codegen: `slint-introspect` extracts the typed schema from a `.slint` file, and a build_runner builder emits `foo.g.dart` next to each `foo.slint` — one typed class per component (properties, callbacks, render target) plus the embedded `.slint` source. Owns the `SlintComponentFactory` base class (`runtime.dart`) that makes the generated API backend-agnostic. |
-| `slint_compiler/` | `slint_compiler` | — | AOT backend, no interpreter: a build_runner builder emits `foo.aot.g.dart` — only the `@Native` externs and a `SlintCompilerFactory` per component, with the component/render-target plumbing hand-written in `runtime.dart`. The app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into the one code asset those externs bind to. |
+| `slint_generator/` | `slint_generator` | `slint-introspect` | Shared codegen: `slint-introspect` extracts the typed schema from a `.slint` file, and a build_runner builder emits `foo.g.dart` next to each `foo.slint` — one typed class per component (properties, callbacks, render target), one value class per named struct, plus the embedded `.slint` source. Owns the `SlintComponentFactory` base class (`runtime.dart`) that makes the generated API backend-agnostic. |
+| `slint_compiler/` | `slint_compiler` | — | AOT backend, no interpreter: a build_runner builder emits `foo.aot.g.dart` — only the `@Native` externs and a `SlintCompilerFactory` per component, with the component/render-target plumbing hand-written in `runtime.dart`. The app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into a staticlib; the app's link hook (`linkSlintAot`) links it into the one code asset those externs bind to, tree-shaking components no reachable Dart code uses (`@RecordUse` + `package:record_use` + `CLinker`). |
 | `slint_skia/` | `slint_skia` | `slint-skia-ffi` | Interpreter + `i-slint-renderer-skia` (GPU) → Flutter external texture. GPU surface plumbing stubbed. |
 
 One typed API, two independent backends behind it:
@@ -19,7 +19,8 @@ One typed API, two independent backends behind it:
 .slint file ──▶ ────┤
                     ├─ runtime:      SlintInterpreterFactory ──────────────────────────┐
                     └─ compile-time: slint_compiler ──▶ foo.aot.g.dart (factory)       ├──▶ SlintView
-                                     + app hook: slint-build AOT cdylib ───────────────┘
+                                     + app hooks: slint-build AOT staticlib, link hook
+                                       tree-shakes unused components into the dylib ───┘
 ```
 
 `await TodoApp.create()` is the whole call site: the generated wrapper's `defaultFactory` picks the backend by build mode, so app code names neither one. Passing a factory explicitly overrides it. Both factories extend the `SlintComponentFactory` base class in `slint_generator`. Both paths feed the same `SlintView` widget via `SlintSoftwareRenderTarget`. The runtime path compiles the embedded `.slint` source with `slint-interpreter` inside the `slint_interpreter` package; the compiled path ships slint-build-generated components in the app's own code asset and involves no interpreter at all.

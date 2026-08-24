@@ -41,6 +41,7 @@ Future<WorkResponse> runCargoRequest(List<String> args) async {
     final crateName = spec['crateName'] as String;
     final targetTriple = spec['targetTriple'] as String;
     final cargoProfile = spec['cargoProfile'] as String;
+    final artifactKind = spec['artifactKind'] as String? ?? 'cdylib';
     final extraEnv = (spec['extraEnv'] as Map<String, Object?>? ?? {})
         .map((k, v) => MapEntry(k, v as String));
 
@@ -74,11 +75,12 @@ Future<WorkResponse> runCargoRequest(List<String> args) async {
       return WorkResponse(exitCode: result.exitCode, output: log.toString());
     }
 
-    final artifact = _findCdylib(result.stdout as String, crateName);
+    final artifact =
+        _findArtifact(result.stdout as String, crateName, artifactKind);
     if (artifact == null) {
       return WorkResponse(
         exitCode: 1,
-        output: '$log\nno cdylib artifact reported by cargo for $crateName',
+        output: '$log\nno $artifactKind artifact reported by cargo for $crateName',
       );
     }
     log.writeln('ARTIFACT:$artifact');
@@ -95,8 +97,10 @@ Future<WorkResponse> runCargoRequest(List<String> args) async {
   }
 }
 
-String? _findCdylib(String cargoJsonOutput, String crateName) {
-  const dylibExts = ['.dylib', '.so', '.dll'];
+String? _findArtifact(String cargoJsonOutput, String crateName, String kind) {
+  final exts = kind == 'staticlib'
+      ? const ['.a', '.lib']
+      : const ['.dylib', '.so', '.dll'];
   final snake = crateName.replaceAll('-', '_');
   for (final line in const LineSplitter().convert(cargoJsonOutput)) {
     if (line.isEmpty || !line.startsWith('{')) continue;
@@ -114,7 +118,7 @@ String? _findCdylib(String cargoJsonOutput, String crateName) {
     final filenames =
         (message['filenames'] as List?)?.cast<String>() ?? const [];
     for (final f in filenames) {
-      if (dylibExts.any(f.endsWith)) return f;
+      if (exts.any(f.endsWith)) return f;
     }
   }
   return null;

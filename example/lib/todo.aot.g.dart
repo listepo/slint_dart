@@ -5,6 +5,7 @@ library;
 
 import 'dart:ffi' as ffi;
 
+import 'package:meta/meta.dart' show RecordUse;
 import 'package:slint_compiler/runtime.dart';
 
 @ffi.Native<ffi.Pointer<ffi.Char> Function()>(symbol: 'slint_aot_last_error')
@@ -15,6 +16,10 @@ external void _stringFree(ffi.Pointer<ffi.Char> s);
 
 // === TodoApp ===
 
+// Liveness anchor: the factory below tears this off, so the AOT link hook
+// sees a recorded use exactly when this component is reachable — and drops
+// its native code from the dylib when it is not.
+@RecordUse()
 @ffi.Native<ffi.Pointer<ffi.Void> Function()>(symbol: 'slint_aot_todo_app_new')
 external ffi.Pointer<ffi.Void> _todoAppNew();
 

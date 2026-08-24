@@ -15,7 +15,8 @@ foo.slint ──▶ slint-introspect (rust/) ──▶ schema ──▶ build_ru
   array element types, callback signatures) as JSON.
 - The build_runner builder emits one class per exported component — typed
   property accessors, `onX`/`invokeX` per callback, `renderTarget`, `dispose`
-  — plus the `.slint` source, embedded so runtime backends can compile it.
+  — plus one class per named struct, plus the `.slint` source, embedded so
+  runtime backends can compile it.
 - Instances come from a `SlintComponentFactory`, so the generated API is
   backend-agnostic:
 
@@ -68,19 +69,52 @@ import 'todo.g.dart';
 
 final app = await TodoApp.create(SlintInterpreterFactory());
 app.todoModel = [
-  {'title': 'Learn Slint', 'checked': false},
+  const TodoItem(title: 'Learn Slint', checked: false),
 ];
-app.onAddTodo((args) {
-  final text = args[0] as String;
-  // ...
-  return null;
-});
+app.onAddTodo((title) => print(title));
 ```
+
+## Generated types
+
+Nothing in the generated API is `Object?`. Slint types map to Dart as:
+
+| Slint                                    | Dart                    |
+| ---------------------------------------- | ----------------------- |
+| `int`                                    | `int`                   |
+| `float`, `length`, `duration`, `angle`, `percent` | `double`       |
+| `string`                                 | `String`                |
+| `bool`                                   | `bool`                  |
+| `[T]`                                    | `List<T>`               |
+| `struct Foo { … }`                       | generated `class Foo`   |
+
+Each named struct becomes a value class with a const constructor, final
+fields, `copyWith`, `==`/`hashCode`, and `toString`. `fromSlint`/`toSlint`
+convert to and from the representation the backends speak, and the wrappers
+call them for you — a `[TodoItem]` property is a `List<TodoItem>` on both
+sides of the accessor.
+
+Callbacks become typed function signatures, using the argument names from the
+`.slint` where they are declared:
+
+```slint
+callback toggle-todo(index: int, checked: bool);
+```
+
+```dart
+void onToggleTodo(void Function(int index, bool checked) handler);
+void invokeToggleTodo(int index, bool checked);
+```
+
+Undeclared argument names fall back to `arg1`, `arg2`, … A callback with a
+return type gets it too, converted the same way.
 
 ## Limits
 
 - Supported property/callback types: numbers, string, bool, named structs,
   arrays. Color/brush/image/enum properties fail generation with a clear
   error.
+- Generated identifiers are not checked against Dart keywords: a Slint field
+  or callback argument named `class` or `default` produces a file that does
+  not compile. Rename it in the `.slint`.
 - A Rust toolchain is required at generation time (the schema tool is compiled
   with cargo).

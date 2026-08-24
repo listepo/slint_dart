@@ -1,16 +1,23 @@
 import 'dart:convert';
 
+import 'package:dart_style/dart_style.dart';
+import 'package:pub_semver/pub_semver.dart';
+
 import 'names.dart';
 import 'schema.dart';
 
 /// Generates the typed wrapper library for one `.slint` file.
 ///
-/// One class per exported component, with typed property accessors and
-/// callback helpers over the `SlintComponent` interface — backend-agnostic:
-/// instances come from a `SlintComponentFactory`, so the same wrapper runs on
-/// the interpreter (`slint_interpreter`) or on AOT-compiled code
-/// (`slint_compiler`). [slintSource] is embedded for the backends that
-/// compile at runtime; [sourceName] only labels the generated header.
+/// One class per exported component and one per named struct, so the whole
+/// public interface is statically typed: `List<TodoItem>` rather than
+/// `List<Object?>`, named callback parameters rather than positional
+/// `List<Object?>` arguments. The JSON shape the backends speak is confined to
+/// the generated `fromSlint`/`toSlint` conversions.
+///
+/// Backend-agnostic: instances come from a `SlintComponentFactory`, so the
+/// same wrapper runs on the interpreter (`slint_interpreter`) or on
+/// AOT-compiled code (`slint_compiler`). [slintSource] is embedded for the
+/// backends that compile at runtime; [sourceName] only labels the header.
 ///
 /// [aotLibrary] names the sibling `*.aot.g.dart` when the package depends on
 /// `slint_compiler`, and [interpreter] says whether it depends on
@@ -24,6 +31,24 @@ String generateWrapperLibrary(
   String? aotLibrary,
   bool interpreter = false,
 }) {
+  final structs = <String, TypeRef>{};
+  for (final component in schema.components) {
+    for (final prop in component.properties) {
+      _collectStructs(prop.type, structs);
+    }
+    for (final cb in component.callbacks) {
+      for (final arg in cb.args) {
+        _collectStructs(arg.type, structs);
+      }
+      if (cb.returnType != null) _collectStructs(cb.returnType!, structs);
+    }
+  }
+
+  // Structs holding lists need element-wise comparison; identity would make
+  // two equal values compare unequal.
+  final deepEquality = structs.values
+      .any((s) => s.fields!.any((f) => f.type.kind == 'array'));
+
   final imports = StringBuffer("import 'package:slint/slint_core.dart';\n"
       "import 'package:slint_generator/runtime.dart';\n");
   if (interpreter) {
@@ -55,6 +80,12 @@ const _useCompiled = bool.fromEnvironment('dart.vm.product') ||
 ''');
   }
 
+  if (deepEquality) b.write(_deepHelpers);
+
+  for (final struct in structs.values) {
+    b.write(_structDart(struct, sourceName, deepEquality: deepEquality));
+  }
+
   for (final component in schema.components) {
     b.write(_componentDart(
       component,
@@ -63,13 +94,185 @@ const _useCompiled = bool.fromEnvironment('dart.vm.product') ||
       interpreter: interpreter,
     ));
   }
-  return b.toString();
+  // Formatting is not cosmetic here: it parses, so a template that would emit
+  // unparseable Dart fails the build instead of the app.
+  return _formatter.format(b.toString());
 }
+
+final _formatter = DartFormatter(languageVersion: Version(3, 13, 0));
 
 /// Encodes [value] as a Dart string literal (JSON escaping plus `$`, which
 /// Dart would otherwise read as interpolation).
 String dartStringLiteral(String value) =>
     jsonEncode(value).replaceAll(r'$', r'\$');
+
+const _deepHelpers = '''
+
+bool _eq(Object? a, Object? b) {
+  if (identical(a, b)) return true;
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_eq(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
+}
+
+int _hash(Object? v) =>
+    v is List ? Object.hashAll([for (final e in v) _hash(e)]) : v.hashCode;
+''';
+
+void _collectStructs(TypeRef type, Map<String, TypeRef> out) {
+  switch (type.kind) {
+    case 'struct':
+      // Recurse before registering so a self-referential name cannot loop.
+      if (out.containsKey(type.structName!)) return;
+      out[type.structName!] = type;
+      for (final field in type.fields!) {
+        _collectStructs(field.type, out);
+      }
+    case 'array':
+      _collectStructs(type.element!, out);
+  }
+}
+
+/// Dart type for a schema type. Throws for anything the backends cannot
+/// marshal, so generation fails loudly rather than emitting `Object?`.
+String _dartType(TypeRef type) => switch (type.kind) {
+      'float' || 'length' || 'angle' || 'percent' || 'duration' => 'double',
+      'int' => 'int',
+      'string' => 'String',
+      'bool' => 'bool',
+      'struct' => pascalCase(type.structName!),
+      'array' => 'List<${_dartType(type.element!)}>',
+      _ => throw StateError(
+          'unsupported property type: ${type.kind} (supported: numbers, '
+          'string, bool, named structs, arrays)'),
+    };
+
+/// Whether reading [type] off the bridge needs more than a cast — true for
+/// every numeric kind too, since the bridge hands back `num`.
+bool _reads(TypeRef type) => switch (type.kind) {
+      'string' || 'bool' => false,
+      'array' => _reads(type.element!),
+      _ => true,
+    };
+
+/// Whether writing [type] needs conversion. Only structs do; every other
+/// typed value is already what the bridge expects.
+bool _writes(TypeRef type) => switch (type.kind) {
+      'struct' => true,
+      'array' => _writes(type.element!),
+      _ => false,
+    };
+
+/// Reads [expr] — an `Object?` off the bridge — as the typed value.
+String _fromWire(String expr, TypeRef type) => switch (type.kind) {
+      'float' || 'length' || 'angle' || 'percent' || 'duration' =>
+        '($expr as num).toDouble()',
+      'int' => '($expr as num).toInt()',
+      'string' => '$expr as String',
+      'bool' => '$expr as bool',
+      'struct' =>
+        '${pascalCase(type.structName!)}.fromSlint($expr as Map<Object?, Object?>)',
+      'array' => _reads(type.element!)
+          ? '[for (final e in $expr as List<Object?>) ${_fromWire('e', type.element!)}]'
+          : '($expr as List<Object?>).cast<${_dartType(type.element!)}>()',
+      _ => throw StateError('unsupported property type: ${type.kind}'),
+    };
+
+/// Writes the typed [expr] back into the shape the bridge expects.
+String _toWire(String expr, TypeRef type) => switch (type.kind) {
+      'struct' => '$expr.toSlint()',
+      'array' when _writes(type.element!) =>
+        '[for (final e in $expr) ${_toWire('e', type.element!)}]',
+      _ => expr,
+    };
+
+String _structDart(
+  TypeRef struct,
+  String sourceName, {
+  required bool deepEquality,
+}) {
+  final name = pascalCase(struct.structName!);
+  final fields = struct.fields!;
+  final dart = {for (final f in fields) f.name: camelCase(f.name)};
+  final types = {for (final f in fields) f.name: _dartType(f.type)};
+
+  final ctorParams =
+      fields.map((f) => 'required this.${dart[f.name]}').join(', ');
+  final declarations = fields
+      .map((f) => '  final ${types[f.name]} ${dart[f.name]};')
+      .join('\n');
+  final fromSlint = fields
+      .map((f) =>
+          "        ${dart[f.name]}: ${_fromWire("value['${f.name}']", f.type)},")
+      .join('\n');
+  final toSlint = fields
+      .map((f) => "        '${f.name}': ${_toWire(dart[f.name]!, f.type)},")
+      .join('\n');
+  final copyParams =
+      fields.map((f) => '${types[f.name]}? ${dart[f.name]}').join(', ');
+  final copyArgs = fields
+      .map((f) => '        ${dart[f.name]}: ${dart[f.name]} ?? this.${dart[f.name]},')
+      .join('\n');
+
+  final eq = fields
+      .map((f) => deepEquality
+          ? '_eq(${dart[f.name]}, other.${dart[f.name]})'
+          : '${dart[f.name]} == other.${dart[f.name]}')
+      .join(' &&\n          ');
+  final hashArgs = fields
+      .map((f) => deepEquality ? '_hash(${dart[f.name]})' : dart[f.name]!)
+      .join(', ');
+  final toStringFields =
+      fields.map((f) => '${dart[f.name]}: \$${dart[f.name]}').join(', ');
+
+  return '''
+
+/// `${struct.structName}`, a struct declared in `$sourceName`.
+class $name {
+  const $name({$ctorParams});
+
+  /// Reads the value as the backends represent it.
+  factory $name.fromSlint(Map<Object?, Object?> value) => $name(
+$fromSlint
+      );
+
+$declarations
+
+  /// The representation the backends expect, keyed by the Slint field names.
+  Map<String, Object?> toSlint() => {
+$toSlint
+      };
+
+  $name copyWith({$copyParams}) => $name(
+$copyArgs
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is $name &&
+          $eq;
+
+  @override
+  int get hashCode => Object.hash($hashArgs);
+
+  @override
+  String toString() => '$name($toStringFields)';
+}
+''';
+}
+
+/// Dart parameter names for a callback's arguments — the declared names when
+/// the compiler reported them, positional fallbacks otherwise.
+List<String> _argNames(CallbackSchema cb) => [
+      for (var i = 0; i < cb.args.length; i++)
+        cb.args[i].name.isEmpty ? 'arg${i + 1}' : camelCase(cb.args[i].name),
+    ];
 
 String _componentDart(
   ComponentSchema component,
@@ -82,39 +285,50 @@ String _componentDart(
 
   for (final prop in component.properties) {
     final name = camelCase(prop.name);
-    final (dartType, read) = switch (prop.type.kind) {
-      'float' || 'length' || 'angle' || 'percent' || 'duration' => (
-          'double',
-          "(component.getProperty('${prop.name}') as num).toDouble()"
-        ),
-      'int' => ('int', "(component.getProperty('${prop.name}') as num).toInt()"),
-      'string' => ('String', "component.getProperty('${prop.name}') as String"),
-      'bool' => ('bool', "component.getProperty('${prop.name}') as bool"),
-      'array' => (
-          'List<Object?>',
-          "component.getProperty('${prop.name}') as List<Object?>"
-        ),
-      'struct' => (
-          'Map<Object?, Object?>',
-          "component.getProperty('${prop.name}') as Map<Object?, Object?>"
-        ),
-      _ => throw StateError('unsupported property type: ${prop.type.kind}'),
-    };
+    final type = _dartType(prop.type);
+    final read = _fromWire("component.getProperty('${prop.name}')", prop.type);
+    final write = _toWire('value', prop.type);
     members.write('''
 
-  $dartType get $name => $read;
-  set $name($dartType value) => component.setProperty('${prop.name}', value);
+  $type get $name => $read;
+  set $name($type value) => component.setProperty('${prop.name}', $write);
 ''');
   }
 
   for (final cb in component.callbacks) {
     final p = pascalCase(cb.name);
+    final names = _argNames(cb);
+    final params = [
+      for (var i = 0; i < cb.args.length; i++)
+        '${_dartType(cb.args[i].type)} ${names[i]}',
+    ].join(', ');
+    final returns =
+        cb.returnType == null ? 'void' : _dartType(cb.returnType!);
+
+    final unpacked = [
+      for (var i = 0; i < cb.args.length; i++)
+        _fromWire('arguments[$i]', cb.args[i].type),
+    ].join(', ');
+    // A void handler still has to answer the bridge, which expects a value.
+    final adapter = cb.returnType == null
+        ? '(arguments) {\n        handler($unpacked);\n        return null;\n      }'
+        : '(arguments) => ${_toWire('handler($unpacked)', cb.returnType!)}';
+
+    final invokeArgs = [
+      for (var i = 0; i < cb.args.length; i++)
+        _toWire(names[i], cb.args[i].type),
+    ].join(', ');
+    final call = "component.invokeCallback('${cb.name}', [$invokeArgs])";
+
     members.write('''
 
-  void on$p(SlintCallbackHandler handler) =>
-      component.setCallbackHandler('${cb.name}', handler);
-  Object? invoke$p([List<Object?> arguments = const []]) =>
-      component.invokeCallback('${cb.name}', arguments);
+  /// Handles the `${cb.name}` callback; replaces any previous handler.
+  void on$p($returns Function($params) handler) =>
+      component.setCallbackHandler('${cb.name}', $adapter);
+
+  /// Invokes the `${cb.name}` callback.
+  $returns invoke$p($params) =>
+      ${cb.returnType == null ? call : _fromWire(call, cb.returnType!)};
 ''');
   }
 
@@ -123,7 +337,7 @@ String _componentDart(
     (final String f, true) => (
         '_useCompiled ? $f : SlintInterpreterFactory()',
         'the AOT-compiled component in release and profile builds, the\n'
-            '  /// interpreter in debug — matching the dylib the build actually bundles',
+            '  /// interpreter in debug, matching the dylib the build bundles',
       ),
     (final String f, false) => (f, 'the AOT-compiled component'),
     (null, true) => ('SlintInterpreterFactory()', 'the interpreter'),
@@ -137,7 +351,8 @@ String _componentDart(
       $pascal(await factory.instantiate(_source, componentName));
 '''
       : '''
-  /// Backend [create] uses when given none: $defaultDoc.
+  /// Backend [create] uses when given none —
+  /// $defaultDoc.
   ///
   /// Created once, on first use, and shared by every instance.
   static final SlintComponentFactory defaultFactory = $defaultFactory;

@@ -35,9 +35,10 @@ class TodoPage extends StatefulWidget {
 class _TodoPageState extends State<TodoPage> {
   TodoApp? _app;
   Object? _loadError;
-  final List<Map<String, Object?>> _todos = [
-    {'title': 'Wire Slint into Flutter', 'checked': true},
-    {'title': 'Render this list', 'checked': false},
+  // TodoItem is generated from the struct declared in todo.slint.
+  final List<TodoItem> _todos = [
+    const TodoItem(title: 'Wire Slint into Flutter', checked: true),
+    const TodoItem(title: 'Render this list', checked: false),
   ];
   int _openCount = 0;
 
@@ -68,33 +69,26 @@ class _TodoPageState extends State<TodoPage> {
 
   void _sync() {
     _app!.todoModel = _todos;
-    _openCount = _todos.where((t) => !(t['checked'] as bool? ?? false)).length;
+    _openCount = _todos.where((t) => !t.checked).length;
     if (mounted) setState(() {});
   }
 
-  Object? _onAddTodo(List<Object?> args) {
-    final title = (args.isNotEmpty ? args[0] : '').toString().trim();
-    if (title.isNotEmpty) {
-      _todos.add({'title': title, 'checked': false});
-      _sync();
-    }
-    return null;
-  }
-
-  Object? _onToggleTodo(List<Object?> args) {
-    final index = (args[0] as num).toInt();
-    final checked = args[1] as bool;
-    if (index >= 0 && index < _todos.length) {
-      _todos[index]['checked'] = checked;
-      _sync();
-    }
-    return null;
-  }
-
-  Object? _onRemoveDone(List<Object?> args) {
-    _todos.removeWhere((t) => t['checked'] as bool? ?? false);
+  void _onAddTodo(String title) {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return;
+    _todos.add(TodoItem(title: trimmed, checked: false));
     _sync();
-    return null;
+  }
+
+  void _onToggleTodo(int index, bool checked) {
+    if (index < 0 || index >= _todos.length) return;
+    _todos[index] = _todos[index].copyWith(checked: checked);
+    _sync();
+  }
+
+  void _onRemoveDone() {
+    _todos.removeWhere((t) => t.checked);
+    _sync();
   }
 
   @override

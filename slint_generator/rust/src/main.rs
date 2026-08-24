@@ -76,11 +76,17 @@ fn component_json(export_name: &str, c: &Rc<Component>) -> Result<Value, String>
         }
         match &decl.property_type {
             Type::Callback(f) => {
+                // arg_names is best-effort in the compiler (an unset name is
+                // the empty string); codegen falls back to positional names.
                 let args = f
                     .args
                     .iter()
-                    .map(type_json)
-                    .collect::<Result<Vec<_>, _>>()
+                    .enumerate()
+                    .map(|(i, t)| {
+                        let arg_name = f.arg_names.get(i).map_or("", |s| s.as_str());
+                        Ok(json!({ "name": arg_name, "type": type_json(t)? }))
+                    })
+                    .collect::<Result<Vec<_>, String>>()
                     .map_err(|e| format!("callback '{name}': {e}"))?;
                 let ret = match &f.return_type {
                     Type::Void => Value::Null,

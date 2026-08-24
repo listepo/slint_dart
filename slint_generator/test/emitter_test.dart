@@ -1,6 +1,22 @@
 import 'package:slint_generator/slint_generator.dart';
 import 'package:test/test.dart';
 
+/// Matches generated source by content, ignoring how the formatter wrapped
+/// it — the tests are about what is emitted, not where the line breaks fall.
+Matcher containsCode(String snippet) => predicate<String>(
+      (out) => _flat(out).contains(_flat(snippet)),
+      'contains code `$snippet`',
+    );
+
+String _flat(String s) => s.replaceAll(RegExp(r'\s+'), '');
+
+/// A realistic named struct — `slint-introspect` never reports an anonymous
+/// one, and never an array without an element type.
+final _todoItem = TypeRef('struct', structName: 'TodoItem', fields: [
+  PropertySchema('title', TypeRef('string')),
+  PropertySchema('checked', TypeRef('bool')),
+]);
+
 SlintSchema _schema({
   List<PropertySchema> properties = const [],
   List<CallbackSchema> callbacks = const [],
@@ -55,27 +71,27 @@ void main() {
   group('backend defaulting', () {
     test('with neither backend, create requires an explicit factory', () {
       final out = _wrapper(_schema());
-      expect(out, contains('static Future<TodoApp> create(SlintComponentFactory factory)'));
-      expect(out, isNot(contains('defaultFactory')));
-      expect(out, isNot(contains('_useCompiled')));
-      expect(out, isNot(contains('slint_interpreter')));
-      expect(out, isNot(contains('aot.')));
+      expect(out, containsCode('static Future<TodoApp> create(SlintComponentFactory factory)'));
+      expect(out, isNot(containsCode('defaultFactory')));
+      expect(out, isNot(containsCode('_useCompiled')));
+      expect(out, isNot(containsCode('slint_interpreter')));
+      expect(out, isNot(containsCode('aot.')));
     });
 
     test('with only the interpreter, it is the default', () {
       final out = _wrapper(_schema(), interpreter: true);
-      expect(out, contains("import 'package:slint_interpreter/slint_interpreter.dart';"));
-      expect(out, contains('defaultFactory = SlintInterpreterFactory()'));
-      expect(out, contains('static Future<TodoApp> create([SlintComponentFactory? factory])'));
-      expect(out, isNot(contains('_useCompiled')));
+      expect(out, containsCode("import 'package:slint_interpreter/slint_interpreter.dart';"));
+      expect(out, containsCode('defaultFactory = SlintInterpreterFactory()'));
+      expect(out, containsCode('static Future<TodoApp> create([SlintComponentFactory? factory])'));
+      expect(out, isNot(containsCode('_useCompiled')));
     });
 
     test('with only the AOT backend, it is the default', () {
       final out = _wrapper(_schema(), aotLibrary: 'todo.aot.g.dart');
-      expect(out, contains("import 'todo.aot.g.dart' as aot;"));
-      expect(out, contains('defaultFactory = aot.todoAppFactory'));
-      expect(out, isNot(contains('_useCompiled')));
-      expect(out, isNot(contains('SlintInterpreterFactory')));
+      expect(out, containsCode("import 'todo.aot.g.dart' as aot;"));
+      expect(out, containsCode('defaultFactory = aot.todoAppFactory'));
+      expect(out, isNot(containsCode('_useCompiled')));
+      expect(out, isNot(containsCode('SlintInterpreterFactory')));
     });
 
     test('with both, the default follows the build mode', () {
@@ -84,17 +100,17 @@ void main() {
         aotLibrary: 'todo.aot.g.dart',
         interpreter: true,
       );
-      expect(out, contains("bool.fromEnvironment('dart.vm.product')"));
-      expect(out, contains("bool.fromEnvironment('dart.vm.profile')"));
+      expect(out, containsCode("bool.fromEnvironment('dart.vm.product')"));
+      expect(out, containsCode("bool.fromEnvironment('dart.vm.profile')"));
       expect(
         out,
-        contains('defaultFactory = _useCompiled ? aot.todoAppFactory : SlintInterpreterFactory()'),
+        containsCode('defaultFactory = _useCompiled ? aot.todoAppFactory : SlintInterpreterFactory()'),
       );
     });
 
     test('the AOT default names the factory slint_compiler generates', () {
       final out = _wrapper(_schema(), aotLibrary: 'todo.aot.g.dart');
-      expect(out, contains('aot.${aotFactoryName('TodoApp')}'));
+      expect(out, containsCode('aot.${aotFactoryName('TodoApp')}'));
     });
   });
 
@@ -106,36 +122,92 @@ void main() {
         PropertySchema('title', TypeRef('string')),
         PropertySchema('checked', TypeRef('bool')),
         PropertySchema('width', TypeRef('length')),
-        PropertySchema('todo-model', TypeRef('array')),
-        PropertySchema('item', TypeRef('struct')),
+        PropertySchema('todo-model', TypeRef('array', element: _todoItem)),
+        PropertySchema('item', _todoItem),
       ]));
 
-      expect(out, contains('double get ratio'));
-      expect(out, contains('int get count'));
-      expect(out, contains('String get title'));
-      expect(out, contains('bool get checked'));
-      expect(out, contains('double get width'));
-      expect(out, contains('List<Object?> get todoModel'));
-      expect(out, contains('Map<Object?, Object?> get item'));
+      expect(out, containsCode('double get ratio'));
+      expect(out, containsCode('int get count'));
+      expect(out, containsCode('String get title'));
+      expect(out, containsCode('bool get checked'));
+      expect(out, containsCode('double get width'));
+      expect(out, containsCode('List<TodoItem> get todoModel'));
+      expect(out, containsCode('TodoItem get item'));
+    });
+
+    test('converts values in both directions at the boundary', () {
+      final out = _wrapper(_schema(properties: [
+        PropertySchema('count', TypeRef('int')),
+        PropertySchema('todo-model', TypeRef('array', element: _todoItem)),
+      ]));
+
+      // The bridge speaks JSON: numbers arrive as `num`, structs as maps.
+      expect(out, containsCode("(component.getProperty('count') as num).toInt()"));
+      expect(
+        out,
+        containsCode('TodoItem.fromSlint(e as Map<Object?, Object?>)'),
+      );
+      expect(
+        out,
+        containsCode("setProperty('todo-model', [for (final e in value) e.toSlint()])"),
+      );
+    });
+
+    test('casts rather than rebuilds a list that needs no conversion', () {
+      final out = _wrapper(_schema(properties: [
+        PropertySchema('tags', TypeRef('array', element: TypeRef('string'))),
+      ]));
+      expect(out, containsCode('List<String> get tags'));
+      expect(out, containsCode('.cast<String>()'));
+      expect(out, containsCode("setProperty('tags', value)"));
     });
 
     test('accessors keep the kebab-case name on the wire', () {
       final out = _wrapper(_schema(properties: [
-        PropertySchema('todo-model', TypeRef('array')),
+        PropertySchema('todo-model', TypeRef('array', element: _todoItem)),
       ]));
-      expect(out, contains("component.getProperty('todo-model')"));
-      expect(out, contains("component.setProperty('todo-model', value)"));
-      expect(out, contains('set todoModel(List<Object?> value)'));
+      expect(out, containsCode("component.getProperty('todo-model')"));
+      expect(out, containsCode("component.setProperty('todo-model',"));
+      expect(out, containsCode('set todoModel(List<TodoItem> value)'));
     });
 
-    test('emits an on/invoke pair per callback', () {
+    test('emits a typed on/invoke pair per callback', () {
       final out = _wrapper(_schema(callbacks: [
-        CallbackSchema('add-todo', [TypeRef('string')], null),
+        CallbackSchema('add-todo', [
+          PropertySchema('text', TypeRef('string')),
+        ], null),
       ]));
-      expect(out, contains('void onAddTodo(SlintCallbackHandler handler)'));
-      expect(out, contains("setCallbackHandler('add-todo', handler)"));
-      expect(out, contains('Object? invokeAddTodo('));
-      expect(out, contains("invokeCallback('add-todo', arguments)"));
+      expect(out, containsCode('void onAddTodo(void Function(String text) handler)'));
+      expect(out, containsCode('void invokeAddTodo(String text)'));
+      expect(out, containsCode("invokeCallback('add-todo', [text])"));
+      // The untyped bridge argument list is unpacked for the handler.
+      expect(out, containsCode('handler(arguments[0] as String)'));
+    });
+
+    test('names callback arguments positionally when the compiler has no name',
+        () {
+      final out = _wrapper(_schema(callbacks: [
+        CallbackSchema('toggle-todo', [
+          PropertySchema('', TypeRef('int')),
+          PropertySchema('', TypeRef('bool')),
+        ], null),
+      ]));
+      expect(out, containsCode('void Function(int arg1, bool arg2) handler'));
+      expect(out, containsCode('void invokeToggleTodo(int arg1, bool arg2)'));
+    });
+
+    test('a callback return value is typed and converted', () {
+      final out = _wrapper(_schema(callbacks: [
+        CallbackSchema('pick', const [], _todoItem),
+      ]));
+      expect(out, containsCode('void onPick(TodoItem Function() handler)'));
+      expect(out, containsCode('(arguments) => handler().toSlint()'));
+      expect(out, containsCode('TodoItem invokePick()'));
+      expect(
+        out,
+        containsCode("TodoItem.fromSlint(component.invokeCallback('pick', []) "
+            'as Map<Object?, Object?>'),
+      );
     });
 
     test('rejects a property type the backends cannot marshal', () {
@@ -146,17 +218,96 @@ void main() {
         throwsA(isA<StateError>().having(
           (e) => e.message,
           'message',
-          contains('color'),
+          containsCode('color'),
         )),
       );
     });
   });
 
+  group('struct classes', () {
+    test('emits one class per named struct, deduped across components', () {
+      final out = generateWrapperLibrary(
+        SlintSchema([
+          ComponentSchema('TodoApp',
+              [PropertySchema('item', _todoItem)], const []),
+          ComponentSchema('SettingsPane',
+              [PropertySchema('other', _todoItem)], const []),
+        ]),
+        sourceName: 'app.slint',
+        slintSource: 'x',
+      );
+      expect('class TodoItem {'.allMatches(out).length, 1);
+    });
+
+    test('gives the class a const constructor and typed final fields', () {
+      final out = _wrapper(_schema(properties: [
+        PropertySchema('item', _todoItem),
+      ]));
+      expect(out, containsCode('const TodoItem({required this.title, '
+          'required this.checked});'));
+      expect(out, containsCode('final String title;'));
+      expect(out, containsCode('final bool checked;'));
+    });
+
+    test('roundtrips through the Slint field names, not the Dart ones', () {
+      final out = _wrapper(_schema(properties: [
+        PropertySchema(
+            'item',
+            TypeRef('struct', structName: 'Row', fields: [
+              PropertySchema('is-done', TypeRef('bool')),
+            ])),
+      ]));
+      expect(out, containsCode('final bool isDone;'));
+      expect(out, containsCode("isDone: value['is-done'] as bool"));
+      expect(out, containsCode("'is-done': isDone"));
+    });
+
+    test('collects structs nested inside other structs', () {
+      final out = _wrapper(_schema(properties: [
+        PropertySchema(
+            'group',
+            TypeRef('struct', structName: 'Group', fields: [
+              PropertySchema('items', TypeRef('array', element: _todoItem)),
+            ])),
+      ]));
+      expect(out, containsCode('class Group {'));
+      expect(out, containsCode('class TodoItem {'));
+      expect(out, containsCode('final List<TodoItem> items;'));
+    });
+
+    test('compares list fields element-wise, not by identity', () {
+      final out = _wrapper(_schema(properties: [
+        PropertySchema(
+            'group',
+            TypeRef('struct', structName: 'Group', fields: [
+              PropertySchema('items', TypeRef('array', element: _todoItem)),
+            ])),
+      ]));
+      expect(out, containsCode('bool _eq(Object? a, Object? b)'));
+      expect(out, containsCode('_eq(items, other.items)'));
+    });
+
+    test('skips the deep helpers when no struct holds a list', () {
+      final out = _wrapper(_schema(properties: [
+        PropertySchema('item', _todoItem),
+      ]));
+      expect(out, isNot(containsCode('bool _eq(')));
+      expect(out, containsCode('title == other.title'));
+    });
+
+    test('emits no struct classes for a struct-free component', () {
+      final out = _wrapper(_schema(properties: [
+        PropertySchema('title', TypeRef('string')),
+      ]));
+      expect(out, isNot(containsCode('fromSlint')));
+    });
+  });
+
   test('embeds the source and the component name', () {
     final out = _wrapper(_schema(), slintSource: 'export component TodoApp {}');
-    expect(out, contains(r'const _source = "export component TodoApp {}"'));
-    expect(out, contains("static const componentName = 'TodoApp';"));
-    expect(out, contains('static const slintSource = _source;'));
+    expect(out, containsCode(r'const _source = "export component TodoApp {}"'));
+    expect(out, containsCode("static const componentName = 'TodoApp';"));
+    expect(out, containsCode('static const slintSource = _source;'));
   });
 
   test('emits one class per exported component', () {
@@ -168,7 +319,7 @@ void main() {
       sourceName: 'app.slint',
       slintSource: 'x',
     );
-    expect(out, contains('class TodoApp {'));
-    expect(out, contains('class SettingsPane {'));
+    expect(out, containsCode('class TodoApp {'));
+    expect(out, containsCode('class SettingsPane {'));
   });
 }

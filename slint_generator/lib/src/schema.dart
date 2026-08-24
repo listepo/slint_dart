@@ -46,7 +46,8 @@ class CallbackSchema {
         json['name'] as String,
         [
           for (final a in (json['args'] as List).cast<Map<String, Object?>>())
-            TypeRef.fromJson(a),
+            PropertySchema(a['name'] as String,
+                TypeRef.fromJson(a['type'] as Map<String, Object?>)),
         ],
         json['return'] == null
             ? null
@@ -54,7 +55,10 @@ class CallbackSchema {
       );
 
   final String name;
-  final List<TypeRef> args;
+
+  /// Argument types, with the declared names where the compiler knows them —
+  /// [PropertySchema.name] is the empty string when it does not.
+  final List<PropertySchema> args;
   final TypeRef? returnType;
 }
 

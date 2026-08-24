@@ -36,14 +36,58 @@ Future<void> buildCargoCrate(
   Iterable<Uri> extraDependencies = const [],
 }) async {
   if (!input.config.buildCodeAssets) return;
-  final code = input.config.code;
-  if (code.linkModePreference == LinkModePreference.static) {
+  if (input.config.code.linkModePreference == LinkModePreference.static) {
     throw UnsupportedError(
       '$crateName only supports dynamic linking (cdylib), '
       'but the build requested static.',
     );
   }
 
+  final result = await runCargoBuild(
+    input,
+    output,
+    crateName: crateName,
+    manifestPath: manifestPath,
+    sourceDirs: sourceDirs,
+    extraDependencies: extraDependencies,
+  );
+
+  for (final name in assetNames ?? [assetName]) {
+    output.assets.code.add(
+      CodeAsset(
+        package: input.packageName,
+        name: name,
+        linkMode: DynamicLoadingBundled(),
+        file: result.artifact,
+      ),
+    );
+  }
+}
+
+/// Result of [runCargoBuild]: the artifact copied into the hook's output
+/// directory, plus cargo's diagnostic output (e.g. to read rustc's
+/// `native-static-libs:` note when building a staticlib).
+typedef CargoBuildResult = ({Uri artifact, String cargoOutput});
+
+/// Builds [crateName] with cargo (through the persistent worker), copies the
+/// produced artifact into `input.outputDirectory`, and registers [sourceDirs]
+/// as hook dependencies. Does not emit any asset — callers decide how the
+/// artifact ships (see [buildCargoCrate] for the plain cdylib case).
+///
+/// [artifactKind] is `cdylib` (default) or `staticlib` and selects which
+/// cargo artifact is picked up. [extraEnv] is merged over the cross-compile
+/// environment for the cargo invocation.
+Future<CargoBuildResult> runCargoBuild(
+  BuildInput input,
+  BuildOutputBuilder output, {
+  required String crateName,
+  Uri? manifestPath,
+  String artifactKind = 'cdylib',
+  Iterable<Uri> sourceDirs = const [],
+  Iterable<Uri> extraDependencies = const [],
+  Map<String, String> extraEnv = const {},
+}) async {
+  final code = input.config.code;
   final triple = rustTriple(code);
   final profile = resolveCargoProfile(input);
   final manifest = manifestPath ?? input.packageRoot.resolve('rust/Cargo.toml');
@@ -55,7 +99,8 @@ Future<void> buildCargoCrate(
         'crateName': crateName,
         'targetTriple': triple,
         'cargoProfile': profile == 'debug' ? 'dev' : 'release',
-        'extraEnv': _crossCompileEnv(code, triple),
+        'artifactKind': artifactKind,
+        'extraEnv': {..._crossCompileEnv(code, triple), ...extraEnv},
       }),
     ],
   );
@@ -107,21 +152,12 @@ Future<void> buildCargoCrate(
   await bundled.parent.create(recursive: true);
   await artifact.copy(bundled.path);
 
-  for (final name in assetNames ?? [assetName]) {
-    output.assets.code.add(
-      CodeAsset(
-        package: input.packageName,
-        name: name,
-        linkMode: DynamicLoadingBundled(),
-        file: bundled.uri,
-      ),
-    );
-  }
-
   for (final uri in _dependencyFiles(input, sourceDirs)) {
     output.dependencies.add(uri);
   }
   output.dependencies.addAll(extraDependencies);
+
+  return (artifact: bundled.uri, cargoOutput: response.output);
 }
 
 /// `debug` or `release`, from the `profile` user-define; defaults to release.

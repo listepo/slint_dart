@@ -1,5 +1,52 @@
 import 'package:slint_generator/slint_generator.dart';
 
+/// The AOT ABI contract shared by the Dart generator (this file), the Rust
+/// glue generator (`rust_glue.dart`), and the build/link hooks
+/// (`aot_build.dart` / `aot_link.dart`).
+
+/// Per-component C entry points the glue exports, as `<prefix>_<op>`.
+/// Must match the `#[no_mangle]` functions `rust_glue.dart` emits — a
+/// generator test asserts they stay in sync.
+const aotComponentOps = [
+  'new',
+  'free',
+  'set_size',
+  'render',
+  'pointer_event',
+  'key_event',
+  'get_property',
+  'set_property',
+  'invoke',
+  'set_callback',
+];
+
+/// C symbols shared by every component in the glue library.
+const aotSharedSymbols = ['slint_aot_last_error', 'slint_aot_string_free'];
+
+/// File name of the manifest the build hook writes next to the routed
+/// staticlib for the link hook (components, symbols, linker flags).
+const aotLinkManifestName = 'slint_aot_link.json';
+
+/// Library name of the final linked dylib (`libslint_dart_aot.dylib` etc.).
+const aotLibraryName = 'slint_dart_aot';
+
+/// C symbol prefix for [componentName] (`TodoApp` → `slint_aot_todo_app`).
+String aotSymbolPrefix(String componentName) =>
+    'slint_aot_${snakeFromPascal(componentName)}';
+
+/// All C symbols belonging to [componentName].
+List<String> aotComponentSymbols(String componentName) =>
+    [for (final op in aotComponentOps) '${aotSymbolPrefix(componentName)}_$op'];
+
+/// Dart name of the generated `_new` extern for [componentName]. It carries
+/// `@RecordUse()`, so tear-offs of it are what the link hook keys component
+/// liveness on.
+String aotNewExternName(String componentName) =>
+    '_${_lowerName(componentName)}New';
+
+String _lowerName(String pascal) =>
+    camelCase(snakeFromPascal(pascal).replaceAll('_', '-'));
+
 /// Generates the `.aot.g.dart` backend library for one `.slint` file.
 ///
 /// Only the parts that must be per-file are generated: the `@Native` externs
@@ -28,6 +75,7 @@ library;
 
 import 'dart:ffi' as ffi;
 
+import 'package:meta/meta.dart' show RecordUse;
 import 'package:slint_compiler/runtime.dart';
 
 @ffi.Native<ffi.Pointer<ffi.Char> Function()>(symbol: 'slint_aot_last_error')
@@ -45,13 +93,17 @@ external void _stringFree(ffi.Pointer<ffi.Char> s);
 
 String _componentDart(ComponentSchema component) {
   final pascal = component.name;
-  final lower = camelCase(snakeFromPascal(pascal).replaceAll('_', '-'));
-  final sym = 'slint_aot_${snakeFromPascal(pascal)}';
+  final lower = _lowerName(pascal);
+  final sym = aotSymbolPrefix(pascal);
 
   return '''
 
 // === $pascal ===
 
+// Liveness anchor: the factory below tears this off, so the AOT link hook
+// sees a recorded use exactly when this component is reachable — and drops
+// its native code from the dylib when it is not.
+@RecordUse()
 @ffi.Native<ffi.Pointer<ffi.Void> Function()>(symbol: '${sym}_new')
 external ffi.Pointer<ffi.Void> _${lower}New();
 

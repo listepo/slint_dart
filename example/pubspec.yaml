@@ -11,10 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
   ffi: ^2.1.0
+  # The generated *.aot.g.dart imports @RecordUse from meta.
+  meta: ^1.19.0
   slint: ^0.1.0
   slint_generator: ^0.1.0
   slint_interpreter: ^0.1.0
-  hooks: ^2.0.0
+  hooks: ^2.2.0
   slint_compiler: ^0.1.0
 
 dev_dependencies:

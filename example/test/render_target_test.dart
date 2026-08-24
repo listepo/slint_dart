@@ -50,9 +50,7 @@ void main() {
       target.render();
       expect(target.render(), isFalse);
 
-      app.todoModel = [
-        {'title': 'newly added', 'checked': false},
-      ];
+      app.todoModel = const [TodoItem(title: 'newly added', checked: false)];
       expect(target.render(), isTrue);
     });
 
@@ -112,39 +110,29 @@ void main() {
     });
 
     test('preserves unicode and quotes in titles', () {
-      app.todoModel = [
-        {'title': r'Slint ♥ "Flutter" \ $5', 'checked': false},
+      app.todoModel = const [
+        TodoItem(title: r'Slint ♥ "Flutter" \ $5', checked: false),
       ];
-      final back = app.todoModel.single as Map<Object?, Object?>;
-      expect(back['title'], r'Slint ♥ "Flutter" \ $5');
+      expect(app.todoModel.single.title, r'Slint ♥ "Flutter" \ $5');
     });
 
     test('replacing the model drops the previous items', () {
-      app.todoModel = [
-        {'title': 'first', 'checked': false},
-        {'title': 'second', 'checked': false},
+      app.todoModel = const [
+        TodoItem(title: 'first', checked: false),
+        TodoItem(title: 'second', checked: false),
       ];
-      app.todoModel = [
-        {'title': 'only', 'checked': true},
-      ];
+      app.todoModel = const [TodoItem(title: 'only', checked: true)];
 
-      expect(app.todoModel.length, 1);
-      expect((app.todoModel.single as Map<Object?, Object?>)['title'], 'only');
+      expect(app.todoModel, const [TodoItem(title: 'only', checked: true)]);
     });
 
     test('a replaced callback handler supersedes the old one', () {
       var first = 0;
       var second = 0;
-      app.onAddTodo((_) {
-        first++;
-        return null;
-      });
-      app.onAddTodo((_) {
-        second++;
-        return null;
-      });
+      app.onAddTodo((_) => first++);
+      app.onAddTodo((_) => second++);
 
-      app.invokeAddTodo(['x']);
+      app.invokeAddTodo('x');
       expect(first, 0, reason: 'the superseded handler should not fire');
       expect(second, 1);
     });

@@ -23,50 +23,39 @@ void main() {
     app.dispose();
   });
 
-  test('todo-model roundtrips through typed accessors', () async {
+  test('todo-model roundtrips as generated struct values', () async {
     final app = await _createOrSkip();
     if (app == null) return;
 
-    app.todoModel = [
-      {'title': 'buy milk', 'checked': false},
-      {'title': 'ship demo', 'checked': true},
+    app.todoModel = const [
+      TodoItem(title: 'buy milk', checked: false),
+      TodoItem(title: 'ship demo', checked: true),
     ];
 
-    final back = app.todoModel;
-    expect(back.length, 2);
-    expect((back[0] as Map<Object?, Object?>)['title'], 'buy milk');
-    expect((back[0] as Map<Object?, Object?>)['checked'], false);
-    expect((back[1] as Map<Object?, Object?>)['title'], 'ship demo');
-    expect((back[1] as Map<Object?, Object?>)['checked'], true);
+    expect(app.todoModel, const [
+      TodoItem(title: 'buy milk', checked: false),
+      TodoItem(title: 'ship demo', checked: true),
+    ]);
 
     app.dispose();
   });
 
-  test('callbacks fire with typed args', () async {
+  test('callbacks fire with typed, named arguments', () async {
     final app = await _createOrSkip();
     if (app == null) return;
 
-    List<Object?>? added;
-    List<Object?>? toggled;
+    String? added;
+    (int, bool)? toggled;
     var removedDone = false;
-    app.onAddTodo((args) {
-      added = args;
-      return null;
-    });
-    app.onToggleTodo((args) {
-      toggled = args;
-      return null;
-    });
-    app.onRemoveDone((args) {
-      removedDone = true;
-      return null;
-    });
+    app.onAddTodo((title) => added = title);
+    app.onToggleTodo((index, checked) => toggled = (index, checked));
+    app.onRemoveDone(() => removedDone = true);
 
-    app.invokeAddTodo(['write tests']);
-    expect(added, ['write tests']);
+    app.invokeAddTodo('write tests');
+    expect(added, 'write tests');
 
-    app.invokeToggleTodo([1, true]);
-    expect(toggled, [1, true]);
+    app.invokeToggleTodo(1, true);
+    expect(toggled, (1, true));
 
     app.invokeRemoveDone();
     expect(removedDone, isTrue);
@@ -79,9 +68,7 @@ void main() {
     if (app == null) return;
     final target = app.renderTarget;
 
-    app.todoModel = [
-      {'title': 'test todo', 'checked': false},
-    ];
+    app.todoModel = const [TodoItem(title: 'test todo', checked: false)];
     target.resize(400, 300);
 
     expect(target.render(), isTrue);

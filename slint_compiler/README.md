@@ -10,7 +10,8 @@ compiled ahead of time with `slint-build` into the app's own code asset —
 ```
              ┌─ slint_generator ─▶ foo.g.dart (typed API, backend-agnostic)
 foo.slint ──▶┼─ build_runner ────▶ foo.aot.g.dart (@Native bindings + factory)
-             └─ app build hook ──▶ slint-build codegen + C ABI glue ──▶ one cdylib code asset
+             └─ app build hook ──▶ slint-build codegen + C ABI glue ──▶ staticlib
+                app link hook ───▶ tree-shaken dylib code asset ◀──────────┘
 ```
 
 - The typed API and the schema tool live in `slint_generator`; this package
@@ -25,18 +26,26 @@ foo.slint ──▶┼─ build_runner ────▶ foo.aot.g.dart (@Native b
   `package:slint_compiler/runtime.dart`, which the generated file imports.
 - The app's `hook/build.dart` calls `buildSlintAot`, which generates a Rust
   crate in hook scratch space (slint-build codegen of every `lib/**.slint`
-  plus generated JSON⇄typed C ABI glue), builds it through slint_build's
-  cargo worker, and emits the matching code assets. The user-visible artifact
-  stays Dart-only. The hook builds only for release/profile
-  (`linkingEnabled`); debug builds — including `flutter test` — use the
-  `slint_interpreter` package instead and ship no AOT dylib.
+  plus generated JSON⇄typed C ABI glue), builds it as a staticlib through
+  slint_build's cargo worker, and routes it — plus a manifest of components,
+  symbols, and rustc's `native-static-libs` linker line — to the app's link
+  hook. The user-visible artifact stays Dart-only. The hook builds only for
+  release/profile (`linkingEnabled`); debug builds — including
+  `flutter test` — use the `slint_interpreter` package instead and ship no
+  AOT dylib.
+- The app's `hook/link.dart` calls `linkSlintAot`, which links the final
+  dylib from that staticlib with `package:native_toolchain_c`'s `CLinker`,
+  keeping only the components the app's Dart code actually uses (see
+  [Component tree-shaking](#component-tree-shaking)) and emits it as the
+  code assets the externs bind to.
 
 ## Usage
 
 ```yaml
 # pubspec.yaml of the app
 dependencies:
-  hooks: ^2.0.0      # hook/build.dart runs without dev deps
+  hooks: ^2.2.0      # hook/{build,link}.dart run without dev deps
+  meta: ^1.19.0      # @RecordUse in the generated *.aot.g.dart
   slint_compiler: ^0.1.0
   slint_generator: ^0.1.0
 
@@ -50,6 +59,14 @@ import 'package:hooks/hooks.dart';
 import 'package:slint_compiler/aot_build.dart';
 
 void main(List<String> args) => build(args, buildSlintAot);
+```
+
+```dart
+// hook/link.dart
+import 'package:hooks/hooks.dart';
+import 'package:slint_compiler/aot_link.dart';
+
+void main(List<String> args) => link(args, linkSlintAot);
 ```
 
 Put `.slint` files under `lib/`, then:
@@ -73,9 +90,75 @@ import 'todo.g.dart';                    // typed API (slint_generator)
 // need not import `todo.aot.g.dart` itself.
 final app = await TodoApp.create();
 app.todoModel = [
-  {'title': 'Learn Slint', 'checked': false},
+  const TodoItem(title: 'Learn Slint', checked: false),
 ];
 ```
+
+## Component tree-shaking
+
+Every component in the package compiles into the one glue library — but an
+app does not necessarily use them all, so the link hook drops the ones it can
+prove dead:
+
+- The generated `_new` extern of each component carries `@RecordUse()` (from
+  `package:meta`). When the toolchain compiles the app, tear-offs of it that
+  survive Dart tree-shaking are recorded — exactly the components whose
+  factory is reachable.
+- `linkSlintAot` reads those recordings with `package:record_use` and links
+  the final dylib with `CLinker` (`package:native_toolchain_c`) using
+  `LinkerOptions.treeshake`: only the C symbols of live components (plus the
+  two shared ones) are kept; `-dead_strip` / `--gc-sections` discards the
+  rest, including each dead component's slint-build generated code.
+- When the toolchain provides no recordings (`recordedUses == null`, the
+  state of `flutter build` today), every component is kept — the output then
+  matches what a plain cdylib build produced. Same if a recording references
+  none of the externs, which would mean the recording missed the FFI
+  tear-offs; dropping everything on that evidence would break the app.
+
+The linker line for the relink (frameworks, system libs) is not guessed: the
+build hook runs cargo with `RUSTFLAGS=--print=native-static-libs` and passes
+rustc's own answer along in the manifest.
+
+## Release size
+
+The linked dylib ships inside the app bundle, so the generated crate sets a
+size-tuned release profile and the link hook strips the result (`-S` debug
+info, `-x` local symbols — cargo's `strip = "symbols"` equivalent, applied at
+the final link because the staticlib must keep symbols for tree-shaking).
+Measured on `example/` (per architecture, aarch64, Slint 1.17.1):
+
+| configuration                                  | dylib | full 800×600 repaint |
+| ---------------------------------------------- | ----- | -------------------- |
+| cargo default                                  | 13 MB | —                    |
+| stripped                                       | 11 MB | —                    |
+| … `+ lto = "fat"`, `codegen-units = 1` ← used  | 9.3 MB | 399 µs              |
+| … `+ opt-level = "z"`                          | 7.2 MB | 1075 µs (2.7× slower) |
+
+`opt-level` deliberately stays at the release default of `3`. `"z"` is 2.1 MB
+smaller but de-vectorises the software renderer's pixel loops, which are the
+hot path. The cost is `lto = "fat"` plus `codegen-units = 1`: a clean release
+build of the crate takes ~11 min on an M-series laptop, and cargo rebuilds it
+whenever a `.slint` file changes.
+
+`panic = "unwind"` is load-bearing, not a default — the glue wraps every entry
+point in `catch_unwind` so a Slint panic surfaces as a Dart error instead of
+killing the host process.
+
+Two things this package deliberately does *not* decide for you:
+
+- **Architectures.** `flutter build macos` produces a universal binary, so the
+  19 MB framework in the bundle is two 9.3 MB slices. Restricting `ARCHS` in
+  `macos/Runner.xcodeproj` roughly halves it (and about halves the 29 MB
+  `FlutterMacOS.framework` too), at the cost of dropping Intel support.
+- **Slint features.** The crate enables `renderer-software` and
+  `software-renderer-systemfonts`. Dropping system fonts would shrink the
+  dylib further but changes what text renders.
+
+Debug builds are unaffected: the dylib is not built or bundled at all, since
+`hook/build.dart` returns early when `linkingEnabled` is false and the app
+falls back to `slint_interpreter`. The interpreter's Dart code is tree-shaken
+out of release snapshots by the const `_useCompiled` branch in the generated
+wrapper — verified absent from `App.framework` in a release build.
 
 ## Limits
 
@@ -85,4 +168,6 @@ app.todoModel = [
 - Component names must be unique across the package (all components share
   one glue dylib).
 - A Rust toolchain is required at generation and build time (the schema tool
-  and the glue crate are compiled with cargo).
+  and the glue crate are compiled with cargo), and a C toolchain
+  (clang / MSVC) at app link time — the link hook drives it via
+  `package:native_toolchain_c`.

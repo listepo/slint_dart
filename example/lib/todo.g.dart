@@ -9,13 +9,46 @@ import 'package:slint_interpreter/slint_interpreter.dart';
 import 'todo.aot.g.dart' as aot;
 
 /// `todo.slint`, embedded so interpreter backends can compile it at runtime.
-const _source = "import { Button, CheckBox, LineEdit, ListView, VerticalBox, HorizontalBox } from \"std-widgets.slint\";\n\nexport struct TodoItem {\n    title: string,\n    checked: bool,\n}\n\nexport component TodoApp inherits Window {\n    preferred-width: 400px;\n    preferred-height: 600px;\n    title: \"Slint ♥ Flutter — Todo\";\n\n    // Host (Dart) owns the list; this default renders before the host syncs.\n    in property <[TodoItem]> todo-model: [\n        { title: \"Wire Slint into Flutter\", checked: true },\n        { title: \"Render this list\", checked: false },\n    ];\n\n    callback add-todo(string);\n    callback toggle-todo(int, bool);\n    callback remove-done();\n\n    VerticalBox {\n        HorizontalBox {\n            padding: 0;\n            edit := LineEdit {\n                placeholder-text: \"What needs to be done?\";\n                accepted(text) => { root.add-todo(text); self.text = \"\"; }\n            }\n            Button {\n                text: \"Add\";\n                primary: true;\n                clicked => { root.add-todo(edit.text); edit.text = \"\"; }\n            }\n        }\n        ListView {\n            for item[index] in root.todo-model: HorizontalBox {\n                padding: 0;\n                CheckBox {\n                    text: item.title;\n                    checked: item.checked;\n                    toggled => { root.toggle-todo(index, self.checked); }\n                }\n            }\n        }\n        Button {\n            text: \"Remove done items\";\n            clicked => { root.remove-done(); }\n        }\n    }\n}\n";
+const _source =
+    "import { Button, CheckBox, LineEdit, ListView, VerticalBox, HorizontalBox } from \"std-widgets.slint\";\n\nexport struct TodoItem {\n    title: string,\n    checked: bool,\n}\n\nexport component TodoApp inherits Window {\n    preferred-width: 400px;\n    preferred-height: 600px;\n    title: \"Slint ♥ Flutter — Todo\";\n\n    // Host (Dart) owns the list; this default renders before the host syncs.\n    in property <[TodoItem]> todo-model: [\n        { title: \"Wire Slint into Flutter\", checked: true },\n        { title: \"Render this list\", checked: false },\n    ];\n\n    // Named arguments carry through to the generated Dart signatures.\n    callback add-todo(title: string);\n    callback toggle-todo(index: int, checked: bool);\n    callback remove-done();\n\n    VerticalBox {\n        HorizontalBox {\n            padding: 0;\n            edit := LineEdit {\n                placeholder-text: \"What needs to be done?\";\n                accepted(text) => { root.add-todo(text); self.text = \"\"; }\n            }\n            Button {\n                text: \"Add\";\n                primary: true;\n                clicked => { root.add-todo(edit.text); edit.text = \"\"; }\n            }\n        }\n        ListView {\n            for item[index] in root.todo-model: HorizontalBox {\n                padding: 0;\n                CheckBox {\n                    text: item.title;\n                    checked: item.checked;\n                    toggled => { root.toggle-todo(index, self.checked); }\n                }\n            }\n        }\n        Button {\n            text: \"Remove done items\";\n            clicked => { root.remove-done(); }\n        }\n    }\n}\n";
 
 /// True in release and profile builds — the same condition the build hooks
 /// use (`linkingEnabled`) to bundle the AOT dylib instead of the interpreter,
 /// spelled without a Flutter import.
-const _useCompiled = bool.fromEnvironment('dart.vm.product') ||
+const _useCompiled =
+    bool.fromEnvironment('dart.vm.product') ||
     bool.fromEnvironment('dart.vm.profile');
+
+/// `TodoItem`, a struct declared in `todo.slint`.
+class TodoItem {
+  const TodoItem({required this.checked, required this.title});
+
+  /// Reads the value as the backends represent it.
+  factory TodoItem.fromSlint(Map<Object?, Object?> value) => TodoItem(
+    checked: value['checked'] as bool,
+    title: value['title'] as String,
+  );
+
+  final bool checked;
+  final String title;
+
+  /// The representation the backends expect, keyed by the Slint field names.
+  Map<String, Object?> toSlint() => {'checked': checked, 'title': title};
+
+  TodoItem copyWith({bool? checked, String? title}) =>
+      TodoItem(checked: checked ?? this.checked, title: title ?? this.title);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TodoItem && checked == other.checked && title == other.title;
+
+  @override
+  int get hashCode => Object.hash(checked, title);
+
+  @override
+  String toString() => 'TodoItem(checked: $checked, title: $title)';
+}
 
 /// Typed wrapper for the `TodoApp` component of `todo.slint`.
 ///
@@ -31,16 +64,20 @@ class TodoApp {
   /// The `.slint` source this wrapper was generated from.
   static const slintSource = _source;
 
-  /// Backend [create] uses when given none: the AOT-compiled component in release and profile builds, the
-  /// interpreter in debug — matching the dylib the build actually bundles.
+  /// Backend [create] uses when given none —
+  /// the AOT-compiled component in release and profile builds, the
+  /// interpreter in debug, matching the dylib the build bundles.
   ///
   /// Created once, on first use, and shared by every instance.
-  static final SlintComponentFactory defaultFactory = _useCompiled ? aot.todoAppFactory : SlintInterpreterFactory();
+  static final SlintComponentFactory defaultFactory = _useCompiled
+      ? aot.todoAppFactory
+      : SlintInterpreterFactory();
 
   /// Instantiates `TodoApp` through [factory], or [defaultFactory].
   static Future<TodoApp> create([SlintComponentFactory? factory]) async =>
-      TodoApp(await (factory ?? defaultFactory)
-          .instantiate(_source, componentName));
+      TodoApp(
+        await (factory ?? defaultFactory).instantiate(_source, componentName),
+      );
 
   /// The backing instance — use it for untyped property/callback access.
   final SlintSoftwareComponent component;
@@ -49,21 +86,42 @@ class TodoApp {
 
   void dispose() => component.dispose();
 
-  List<Object?> get todoModel => component.getProperty('todo-model') as List<Object?>;
-  set todoModel(List<Object?> value) => component.setProperty('todo-model', value);
+  List<TodoItem> get todoModel => [
+    for (final e in component.getProperty('todo-model') as List<Object?>)
+      TodoItem.fromSlint(e as Map<Object?, Object?>),
+  ];
+  set todoModel(List<TodoItem> value) =>
+      component.setProperty('todo-model', [for (final e in value) e.toSlint()]);
 
-  void onAddTodo(SlintCallbackHandler handler) =>
-      component.setCallbackHandler('add-todo', handler);
-  Object? invokeAddTodo([List<Object?> arguments = const []]) =>
-      component.invokeCallback('add-todo', arguments);
+  /// Handles the `add-todo` callback; replaces any previous handler.
+  void onAddTodo(void Function(String title) handler) =>
+      component.setCallbackHandler('add-todo', (arguments) {
+        handler(arguments[0] as String);
+        return null;
+      });
 
-  void onRemoveDone(SlintCallbackHandler handler) =>
-      component.setCallbackHandler('remove-done', handler);
-  Object? invokeRemoveDone([List<Object?> arguments = const []]) =>
-      component.invokeCallback('remove-done', arguments);
+  /// Invokes the `add-todo` callback.
+  void invokeAddTodo(String title) =>
+      component.invokeCallback('add-todo', [title]);
 
-  void onToggleTodo(SlintCallbackHandler handler) =>
-      component.setCallbackHandler('toggle-todo', handler);
-  Object? invokeToggleTodo([List<Object?> arguments = const []]) =>
-      component.invokeCallback('toggle-todo', arguments);
+  /// Handles the `remove-done` callback; replaces any previous handler.
+  void onRemoveDone(void Function() handler) =>
+      component.setCallbackHandler('remove-done', (arguments) {
+        handler();
+        return null;
+      });
+
+  /// Invokes the `remove-done` callback.
+  void invokeRemoveDone() => component.invokeCallback('remove-done', []);
+
+  /// Handles the `toggle-todo` callback; replaces any previous handler.
+  void onToggleTodo(void Function(int index, bool checked) handler) =>
+      component.setCallbackHandler('toggle-todo', (arguments) {
+        handler((arguments[0] as num).toInt(), arguments[1] as bool);
+        return null;
+      });
+
+  /// Invokes the `toggle-todo` callback.
+  void invokeToggleTodo(int index, bool checked) =>
+      component.invokeCallback('toggle-todo', [index, checked]);
 }
