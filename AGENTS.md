@@ -16,6 +16,7 @@ mise exec -- flutter build macos --release  # e2e: codegen + cargo + link hook
 mise exec -- flutter build ios --release --no-codesign            # iOS (device, unsigned)
 mise exec -- flutter build apk --release --target-platform android-arm64  # Android
 mise exec -- dart test                    # in a package dir: its unit tests
+mise exec -- flutter test                 # in slint_patrol/: live-component E2E tests
 mise exec -- dart analyze .               # per package; workspace-wide is noisy (slint_skia stubs)
 cd examples/todo && mise exec -- dart run build_runner build   # regenerate *.g.dart after editing a .slint
 cargo fmt --all                                          # Rust formatting (rustfmt defaults, no config file)
@@ -84,11 +85,52 @@ release builds (fat LTO) take minutes; run them in the background.
   recompiles — if the persisted file is missing and stale, delete the
   crate's `target/` to force a rebuild.
 - **Interpreter component definitions are selected by name** —
-  `defs.firstWhere((d) => d.name == ...)`. `.slint` files export multiple
-  components; `defs.first` is whichever comes first in the file.
+  `defs.firstWhere((d) => d.name == ...)`. `slint_interpreter`'s `compile`
+  collects `CompilationResult::components()`, which iterates a `HashMap`:
+  the order is arbitrary and not the order of the file, so `defs.first` is
+  a coin flip whenever a `.slint` exports more than one component.
 - **`opt-level = "z"` is rejected** for the AOT crate: measured 2.7× slower
   full-frame renders for ~1 MB/arch. Size-tune with fat LTO +
   `codegen-units = 1` only (see slint_compiler README's table).
+- **No `.slint` is ever bundled as a Flutter asset, and the generated `load()`
+  must stay that way.** Flutter declares assets per package, not per build
+  mode (`dartDataAssets`, which could do it from a build hook, is
+  `available: false` off master and cannot be forced on by env var or
+  config) — so anything listed under `flutter: assets:` for debug convenience
+  also ships in release, putting the UI source in the product. The wrapper
+  therefore reads the bundle *only* when handed an explicit `path`;
+  `load()` with no argument uses the source the builder embedded. An emitter
+  test asserts no `loadString(assetPath)` slips back in. `examples/todo`'s
+  assetless `flutter:` section and its "nothing reads the bundle unless a path
+  says so" test are the regression guards — don't "fix" either.
+- **`SlintComponent.load` routes through the `SlintComponent.loader` hook**
+  rather than importing a backend, which is what keeps `slint_core.dart` free
+  of any Flutter import: reading the bundle is `slint_interpreter`'s job
+  (`useSlintInterpreter`, registered from the factory constructor). AOT has no
+  runtime compiler, so the generated `load` ignores `path` in release and uses
+  the compiled-in component — that fallback is the feature, not a gap to close.
+- **Element queries live in `slint-dart-interpreter`** (`elements.rs`), not in
+  either FFI crate: `slint-testing-ffi` and `slint-interpreter-ffi` both call
+  `query_elements`/`describe_all`, so a headless test and a `slint_patrol`
+  test driving the live app read the same fields for the same element. The
+  crate depends on `i-slint-backend-testing` for `search_api` only — walking
+  the item tree and reading geometry needs no platform, and `elements.rs`
+  never installs the testing one.
+- **`slint_patrol` maps Slint geometry to Flutter coordinates by dividing by
+  the device pixel ratio**, because `SlintView` multiplies by it on the way in
+  and Slint's scale factor is never set (so Slint logical == physical). If
+  someone wires up `set_scale_factor`, that mapping has to change with it.
+- **`pumpAndSettle` never returns with a `SlintView` on screen** — its
+  `Ticker` renders every frame, so the tree is never quiescent. `slint_patrol`
+  pumps a bounded number of frames (`slintSettle`); don't "fix" it back to
+  settling.
+- **`slint_testing` sets its own Slint platform.** It calls
+  `init_no_event_loop()`, which panics if a platform already exists — safe
+  only because `slint-testing-ffi` is a separate dylib with its own
+  statically linked copy of Slint, independent of the
+  `FlutterSoftwarePlatform` in `slint-interpreter-ffi`. Do not merge the two
+  crates. Its clicks go through the accessible *default action*: the
+  `single_click`/`double_click` helpers are async and need an event loop.
 
 ## Conventions
 

@@ -3,9 +3,11 @@ import 'package:slint/slint.dart';
 
 import 'todo.g.dart';
 
-// The app never names a backend: `TodoApp.create()` uses the generated
+// The app never names a backend: `TodoApp.load()` uses the generated
 // `defaultFactory`, which follows the build mode exactly like the hooks that
 // decide which dylib ships — interpreter in debug, AOT in release/profile.
+// It compiles the source todo.g.dart embeds, so lib/todo.slint is not a
+// Flutter asset and the UI source stays out of the shipped bundle.
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +52,7 @@ class _TodoPageState extends State<TodoPage> {
 
   Future<void> _load() async {
     try {
-      final app = await TodoApp.create();
+      final app = await TodoApp.load();
       if (!mounted) {
         app.dispose();
         return;

@@ -32,6 +32,36 @@ same condition as Flutter's `kDebugMode`, so it matches the dylib the build
 hooks bundle); with one, it is that one; with neither, `create` requires an
 explicit factory. It is created once and shared.
 
+### `load` — the no-argument entry point
+
+`load()` is `create()` without having to name a factory, and it is what an
+app calls:
+
+```dart
+final app = await TodoApp.load();                              // embedded source
+final app = await TodoApp.load(path: 'assets/ui/todo.slint');  // from the bundle
+```
+
+**Nothing is bundled by default.** `load()` uses the source the builder
+captured, which is already in the `.g.dart`; it never touches the asset
+bundle unless you pass `path`. That keeps the `.slint` out of the shipped
+app — Flutter declares assets per package, not per build mode, so an asset
+declared for debug convenience would ride along into release and put the UI
+source in the product.
+
+`path` is for the opposite case: an app that deliberately ships `.slint`
+files to compile at runtime (a theme pack, user-supplied UI). Declare them
+under `flutter: assets:` and pass the key. Compiling at runtime needs the
+interpreter, so a release build ignores `path` and uses the AOT component —
+there is no compiler in a shipped AOT binary to hand the source to.
+
+`assetPath` is generated alongside as the path the builder read, for an app
+that does ship that file. `load` itself is only generated when there is a
+`defaultFactory` to run it on.
+
+For a component with no generated wrapper, `SlintComponent.load(assetKey)`
+is the untyped equivalent — see `slint_interpreter`.
+
 ## Two entry points
 
 - `package:slint_generator/runtime.dart` — the `SlintComponentFactory` base

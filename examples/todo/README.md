@@ -40,13 +40,24 @@ Two files per `.slint`, both regenerated after editing `lib/todo.slint`:
 `main.dart` names no backend at all:
 
 ```dart
-final app = await TodoApp.create();
+final app = await TodoApp.load();
 ```
 
 The generated `TodoApp.defaultFactory` picks one by build mode, matching the
 dylib that actually ships (the hooks read `linkingEnabled`, true exactly for
 the non-debug modes). Pass a factory explicitly to override it — that is what
 the tests do.
+
+`load()` is `create()` without naming a factory. Neither bundles
+`lib/todo.slint`: `todo.g.dart` embeds the source and the release build
+compiles it into the AOT dylib, so the UI source never ships. That is why
+`pubspec.yaml` declares no `flutter: assets:` entry — Flutter declares assets
+per package, not per build mode, so anything listed there for debug
+convenience would ride along into release.
+
+`load(path: 'assets/ui/todo.slint')` is the other direction: read a `.slint`
+the app ships on purpose and compile it at runtime. Release ignores `path` —
+an AOT binary has no compiler to hand the source to.
 
 ### Interpreter — debug builds
 

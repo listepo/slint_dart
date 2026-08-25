@@ -4,6 +4,7 @@ library;
 
 import 'package:slint/slint_core.dart';
 import 'package:slint_generator/runtime.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:slint_interpreter/slint_interpreter.dart';
 
 import 'todo.aot.g.dart' as aot;
@@ -78,6 +79,31 @@ class TodoApp {
       TodoApp(
         await (factory ?? defaultFactory).instantiate(_source, componentName),
       );
+
+  /// Path of the `.slint` file this wrapper was generated from.
+  ///
+  /// The source at that path is embedded below, so nothing has to be
+  /// bundled. It is an asset key only for an app that deliberately ships
+  /// the `.slint` and passes it to [load].
+  static const assetPath = 'lib/todo.slint';
+
+  /// Instantiates `TodoApp` from the source captured at generation time.
+  ///
+  /// Pass [path] — an asset key, declared under `flutter: assets:` — to
+  /// compile a `.slint` shipped with the app instead.
+  /// Release and profile builds use the AOT-compiled component and
+  /// ignore [path], matching [defaultFactory].
+  static Future<TodoApp> load({
+    String? path,
+    SlintComponentFactory? factory,
+  }) async => TodoApp(
+    await (factory ?? defaultFactory).instantiate(
+      path == null || _useCompiled
+          ? _source
+          : await rootBundle.loadString(path),
+      componentName,
+    ),
+  );
 
   /// The backing instance — use it for untyped property/callback access.
   final SlintSoftwareComponent component;
@@ -154,6 +180,31 @@ class UnusedGadget {
       UnusedGadget(
         await (factory ?? defaultFactory).instantiate(_source, componentName),
       );
+
+  /// Path of the `.slint` file this wrapper was generated from.
+  ///
+  /// The source at that path is embedded below, so nothing has to be
+  /// bundled. It is an asset key only for an app that deliberately ships
+  /// the `.slint` and passes it to [load].
+  static const assetPath = 'lib/todo.slint';
+
+  /// Instantiates `UnusedGadget` from the source captured at generation time.
+  ///
+  /// Pass [path] — an asset key, declared under `flutter: assets:` — to
+  /// compile a `.slint` shipped with the app instead.
+  /// Release and profile builds use the AOT-compiled component and
+  /// ignore [path], matching [defaultFactory].
+  static Future<UnusedGadget> load({
+    String? path,
+    SlintComponentFactory? factory,
+  }) async => UnusedGadget(
+    await (factory ?? defaultFactory).instantiate(
+      path == null || _useCompiled
+          ? _source
+          : await rootBundle.loadString(path),
+      componentName,
+    ),
+  );
 
   /// The backing instance — use it for untyped property/callback access.
   final SlintSoftwareComponent component;

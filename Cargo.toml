@@ -6,6 +6,7 @@ members = [
     "slint_interpreter/interpreter",
     "slint_interpreter/rust",
     "slint_skia/rust",
+    "slint_testing/rust",
 ]
 
 # Shared lint levels; every member opts in with `[lints] workspace = true`.

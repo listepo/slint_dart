@@ -7,6 +7,9 @@ publish = false
 [dependencies]
 slint = { version = "1", default-features = false, features = ["compat-1-2", "std"] }
 slint-interpreter = { version = "1", default-features = false, features = ["compat-1-2", "std"] }
+# For `search_api` only — the element search and geometry readers. Its testing
+# platform is never installed from here; see `elements.rs`.
+i-slint-backend-testing = { version = "1.17", default-features = false }
 spin_on = "0.1"
 serde_json = "1"
 

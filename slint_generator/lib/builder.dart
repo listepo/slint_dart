@@ -46,6 +46,9 @@ class _SlintBuilder implements Builder {
       generateWrapperLibrary(
         schema,
         sourceName: input.pathSegments.last,
+        // Recorded for an app that ships this `.slint` as an asset; the
+        // wrapper does not read it on its own.
+        assetPath: input.path,
         slintSource: source,
         aotLibrary: deps.contains('slint_compiler')
             ? input.changeExtension('.aot.g.dart').pathSegments.last

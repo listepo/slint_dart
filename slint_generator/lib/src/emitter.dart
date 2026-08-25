@@ -28,6 +28,7 @@ String generateWrapperLibrary(
   SlintSchema schema, {
   required String sourceName,
   required String slintSource,
+  String? assetPath,
   String? aotLibrary,
   bool interpreter = false,
 }) {
@@ -51,6 +52,10 @@ String generateWrapperLibrary(
 
   final imports = StringBuffer("import 'package:slint/slint_core.dart';\n"
       "import 'package:slint_generator/runtime.dart';\n");
+  if (interpreter && assetPath != null) {
+    imports.write(
+        "import 'package:flutter/services.dart' show rootBundle;\n");
+  }
   if (interpreter) {
     imports
         .write("import 'package:slint_interpreter/slint_interpreter.dart';\n");
@@ -90,6 +95,7 @@ const _useCompiled = bool.fromEnvironment('dart.vm.product') ||
     b.write(_componentDart(
       component,
       sourceName,
+      assetPath: assetPath,
       aotLibrary: aotLibrary,
       interpreter: interpreter,
     ));
@@ -277,6 +283,7 @@ List<String> _argNames(CallbackSchema cb) => [
 String _componentDart(
   ComponentSchema component,
   String sourceName, {
+  required String? assetPath,
   required String? aotLibrary,
   required bool interpreter,
 }) {
@@ -363,6 +370,47 @@ String _componentDart(
           .instantiate(_source, componentName));
 ''';
 
+  // Reading an asset only means something when a backend can compile it at
+  // runtime; an AOT-only wrapper already contains the component. Without an
+  // explicit path there is no bundle access at all, so shipping the `.slint`
+  // stays the app's decision rather than this wrapper's.
+  final loadSource = interpreter
+      ? (aotFactory == null
+          ? 'path == null\n              ? _source\n'
+              '              : await rootBundle.loadString(path)'
+          : 'path == null || _useCompiled\n              ? _source\n'
+              '              : await rootBundle.loadString(path)')
+      : '_source';
+  final loadDoc = interpreter && aotFactory != null
+      ? '\n  /// Release and profile builds use the AOT-compiled component and\n'
+          '  /// ignore [path], matching [defaultFactory].'
+      : (interpreter
+          ? ''
+          : '\n  /// This backend compiles components at build time, so [path]\n'
+              '  /// is ignored and the compiled-in component is used.');
+  final load = (defaultFactory == null || assetPath == null)
+      ? ''
+      : '''
+
+  /// Path of the `.slint` file this wrapper was generated from.
+  ///
+  /// The source at that path is embedded below, so nothing has to be
+  /// bundled. It is an asset key only for an app that deliberately ships
+  /// the `.slint` and passes it to [load].
+  static const assetPath = '$assetPath';
+
+  /// Instantiates `$pascal` from the source captured at generation time.
+  ///
+  /// Pass [path] — an asset key, declared under `flutter: assets:` — to
+  /// compile a `.slint` shipped with the app instead.$loadDoc
+  static Future<$pascal> load({
+    String? path,
+    SlintComponentFactory? factory,
+  }) async =>
+      $pascal(await (factory ?? defaultFactory).instantiate(
+          $loadSource, componentName));
+''';
+
   final example = defaultFactory == null
       ? 'final app = await $pascal.create(SlintInterpreterFactory());'
       : 'final app = await $pascal.create();';
@@ -383,7 +431,7 @@ class $pascal {
   /// The `.slint` source this wrapper was generated from.
   static const slintSource = _source;
 
-$create
+$create$load
   /// The backing instance — use it for untyped property/callback access.
   final SlintSoftwareComponent component;
 

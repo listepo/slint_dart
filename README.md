@@ -11,6 +11,8 @@
 | `slint_generator/` | `slint_generator` | `slint-introspect` | Shared codegen: `slint-introspect` extracts the typed schema from a `.slint` file, and a build_runner builder emits `foo.g.dart` next to each `foo.slint` — one typed class per component (properties, callbacks, render target), one value class per named struct, plus the embedded `.slint` source. Owns the `SlintComponentFactory` base class (`runtime.dart`) that makes the generated API backend-agnostic. |
 | `slint_compiler/` | `slint_compiler` | — | AOT backend, no interpreter: a build_runner builder emits `foo.aot.g.dart` — only the `@Native` externs and a `SlintCompilerFactory` per component, with the component/render-target plumbing hand-written in `runtime.dart`. The app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into a staticlib; the app's link hook (`linkSlintAot`) links it into the one code asset those externs bind to, tree-shaking components no reachable Dart code uses (`@RecordUse` + `package:record_use` + `CLinker`). |
 | `slint_skia/` | `slint_skia` | `slint-skia-ffi` | Interpreter + `i-slint-renderer-skia` (GPU) → Flutter external texture. GPU surface plumbing stubbed. |
+| `slint_testing/` | `slint_testing` | `slint-testing-ffi` | Testing backend (`i-slint-backend-testing`): instantiates a component with no window, renderer, or event loop and exposes its accessibility tree, so tests find elements by label/id/type/role, click them, and assert on properties and a callback log. Runs under plain `dart test`. |
+| `slint_patrol/` | `slint_patrol` | — | Patrol (E2E) support: `$.slint(...)` finders over the **live** component's accessibility tree, tapping and typing through real Flutter gestures aimed at each element's on-screen rect. Extends `PatrolTester`, so one test can drive Flutter widgets, Slint elements, and native UI. |
 | `slint_build/` | `slint_build` | — | Shared hook plumbing: cargo builds through a `bazel_worker` persistent worker, target-triple mapping, cross-compile env, cache invalidation. Used by every `hook/build.dart`. |
 | `examples/todo/` | `todo_example` | — | Todo demo: one typed API (`TodoApp`) over both backends, the app's `hook/build.dart` + `hook/link.dart`, and the `UnusedGadget` tree-shaking canary. |
 
@@ -25,7 +27,7 @@ One typed API, two independent backends behind it:
                                        tree-shakes unused components into the dylib ───┘
 ```
 
-`await TodoApp.create()` is the whole call site: the generated wrapper's `defaultFactory` picks the backend by build mode, so app code names neither one. Passing a factory explicitly overrides it. Both factories extend the `SlintComponentFactory` base class in `slint_generator`. Both paths feed the same `SlintView` widget via `SlintSoftwareRenderTarget`. The runtime path compiles the embedded `.slint` source with `slint-interpreter` inside the `slint_interpreter` package; the compiled path ships slint-build-generated components in the app's own code asset and involves no interpreter at all.
+`await TodoApp.load()` is the whole call site: the generated wrapper's `defaultFactory` picks the backend by build mode, so app code names neither one. Passing a factory explicitly overrides it. No `.slint` is bundled — the builder embeds the source it compiled, and release compiles it into the AOT dylib — so the UI source never ships. `load(path: ...)` reads a `.slint` from the asset bundle instead, for an app that deliberately ships one to compile at runtime. Both factories extend the `SlintComponentFactory` base class in `slint_generator`. Both paths feed the same `SlintView` widget via `SlintSoftwareRenderTarget`. The runtime path compiles the embedded `.slint` source with `slint-interpreter` inside the `slint_interpreter` package; the compiled path ships slint-build-generated components in the app's own code asset and involves no interpreter at all.
 
 The path follows the Flutter build mode, and only the matching dylib is bundled: debug builds (including `flutter test`) ship the interpreter (`slint_interpreter_ffi`), release/profile builds ship the AOT dylib (`slint_dart_aot`). The hooks branch on `linkingEnabled`, which Flutter sets exactly for the non-debug modes.
 
@@ -47,9 +49,10 @@ resolved against the code asset `package:<pkg>/src/bindings.g.dart` — no
 
 ## Native assets build
 
-The FFI packages (`slint_interpreter`, `slint_skia`) ship a `hook/build.dart`
-(Dart native assets). During
-`flutter run` / `flutter build` / `flutter test`, the hook builds the
+The FFI packages (`slint_interpreter`, `slint_skia`, `slint_testing`) ship a
+`hook/build.dart` (Dart native assets). During
+`flutter run` / `flutter build` / `flutter test` — or `dart test`, for
+`slint_testing` — the hook builds the
 package's crate with cargo — driven through a `bazel_worker` persistent
 worker (`slint_build/bin/cargo_worker.dart`) — and bundles the produced
 cdylib as a code asset. Shared plumbing lives in the `slint_build` package
@@ -92,6 +95,40 @@ cargo fmt --all
 cargo clippy --workspace --exclude slint-skia-ffi --all-targets
 ```
 
+## Testing UIs
+
+`slint_testing` runs a component on Slint's testing backend — no window,
+renderer, or event loop — and exposes its accessibility tree, so a test finds
+elements by label, id, type, or role, clicks them, fills them in, and asserts
+on properties and a callback log:
+
+```dart
+app.record('add-todo');
+app.findById('TodoApp::edit').single.setValue('buy milk');
+app.findByLabel('Add').single.click();
+expect(app.takeCalls().single.args, ['buy milk']);
+```
+
+It needs neither Flutter nor a device: `dart test` builds its crate through
+the same native-assets hook. See the package README.
+
+`slint_patrol` covers the other half — the app a user actually touches.
+Slint draws its whole UI into one Flutter widget, so Patrol's `$(...)` sees a
+single opaque box; `$.slint(...)` searches the **live** component's tree and
+acts through real Flutter gestures aimed at the element's on-screen rect:
+
+```dart
+await $.slintById('TodoApp::edit').enterText('buy milk');
+await $.slint('Add').tap();
+expect($.slintComponent().getProperty('todo-count'), 1);
+```
+
+Both describe elements identically, because both come from one query
+implementation in `slint-dart-interpreter` that the testing and runtime FFI
+crates each expose. Element queries need the interpreter backend, so they work
+in debug builds — including `flutter test` and `patrol test` — and not in the
+AOT backend of release and profile builds.
+
 ## Status / next steps
 
 - [x] Pub + Cargo workspaces, core API, FFI crates, cbindgen/ffigen pipeline
@@ -102,4 +139,6 @@ cargo clippy --workspace --exclude slint-skia-ffi --all-targets
 - [x] Compiled path (`slint_compiler`): `*.aot.g.dart` + slint-build AOT staticlib; backend follows the build mode (debug → interpreter, release/profile → AOT)
 - [x] Build glue: native assets `hook/build.dart` per package + `bazel_worker` cargo worker (`flutter build/run/test` compiles the Rust crates; debug/release via `profile` user-define)
 - [x] Component tree-shaking: app link hook relinks the AOT staticlib keeping only components with a recorded use (`@RecordUse` + `package:record_use` + `CLinker`; active behind `FLUTTER_RECORD_USE=true`, keep-all otherwise)
+- [x] UI testing (`slint_testing`): accessibility-tree queries, clicks, property and callback assertions on `i-slint-backend-testing`, under plain `dart test`
+- [x] E2E testing (`slint_patrol`): Patrol finders over the live component, tapping and typing through real Flutter gestures (interpreter backend only)
 - [ ] Skia GPU surface plumbing per platform (Metal / GL / Vulkan / D3D); `Texture` widget path

@@ -23,6 +23,53 @@ Provides software-rendered component instances through a C ABI:
 final app = await TodoApp.create(SlintInterpreterFactory());
 ```
 
+## Loading a `.slint` file at runtime
+
+Compiling at runtime is what this backend is for, so it is the one that can
+turn an asset key into a component. It registers itself as the backend for
+`SlintComponent.load` the first time a `SlintInterpreterFactory` is
+constructed — which the generated wrappers do — so an app that uses
+`TodoApp.load()` never has to say anything. Without a wrapper, call
+`useSlintInterpreter()` once at startup:
+
+```dart
+useSlintInterpreter();
+// assets/ui/dashboard.slint is declared under `flutter: assets:`
+final component = await SlintComponent.load('assets/ui/dashboard.slint',
+    component: 'Dashboard');
+runApp(SlintView(target: component.renderTarget));
+```
+
+The path is a Flutter asset key, so the file must be declared under
+`flutter: assets:` — which also means it ships, in every build mode. Reach
+for this when that is the point (a theme pack, user-supplied UI), not to
+avoid regenerating: a wrapper's `TodoApp.load()` already carries its source
+and bundles nothing.
+
+`component:` may be omitted only when the file exports exactly one — the
+compiler returns them unordered, so with several exports there is no
+meaningful "first" and `load` names what it found instead of guessing. The
+engine is created on first use and shared across loads.
+
+Only this backend implements the hook. A release build ships the AOT backend,
+which has no compiler, so `SlintComponent.load` has nothing to route to —
+runtime `.slint` loading is an interpreter-only capability.
+
+## Inspecting the live component
+
+Components implement `SlintInspectableComponent`: `queryElements(kind, needle)`
+returns the accessibility tree — identity, accessible state, and each
+element's geometry — as decoded JSON maps, over the
+`slint_interpreter_instance_query_elements` entry point.
+
+That is what makes a Slint UI testable from Flutter, which otherwise sees one
+opaque widget: `slint_patrol` uses it to find an element and work out where on
+screen to tap it. The query itself lives in `slint-dart-interpreter`
+(`elements.rs`) and is shared with `slint-testing-ffi`, so headless and live
+tests describe elements identically. It comes from `i-slint-backend-testing`'s
+`search_api` only — reading the item tree needs no platform, and this crate
+keeps installing its own `FlutterSoftwarePlatform`.
+
 ## Binding Pipeline
 
 ```

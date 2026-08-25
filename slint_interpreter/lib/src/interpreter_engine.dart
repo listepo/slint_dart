@@ -114,7 +114,8 @@ class InterpreterSlintComponentDefinition implements SlintComponentDefinition {
   }
 }
 
-class InterpreterSlintComponent implements SlintSoftwareComponent {
+class InterpreterSlintComponent
+    implements SlintSoftwareComponent, SlintInspectableComponent {
   final SlintInterpreterInstance _instanceHandle;
   late final InterpreterSoftwareRenderTarget _renderTarget = InterpreterSoftwareRenderTarget(this);
   final Map<String, NativeCallable<_InterpreterSlintCallbackFn>> _callbacks = {};
@@ -139,6 +140,28 @@ class InterpreterSlintComponent implements SlintSoftwareComponent {
       return _jsonToValue(json);
     } finally {
       malloc.free(nameCStr);
+    }
+  }
+
+  @override
+  List<Map<String, Object?>> queryElements(String kind, [String? needle]) {
+    final kindCStr = kind.toNativeUtf8();
+    final needleCStr = needle?.toNativeUtf8();
+    try {
+      final jsonCStr = slint_interpreter_instance_query_elements(
+        _instanceHandle,
+        kindCStr.cast(),
+        needleCStr?.cast() ?? nullptr,
+      );
+      if (jsonCStr.address == 0) {
+        throw StateError(_getLastError());
+      }
+      final json = jsonCStr.cast<Utf8>().toDartString();
+      slint_interpreter_string_free(jsonCStr.cast());
+      return (jsonDecode(json) as List).cast<Map<String, Object?>>();
+    } finally {
+      malloc.free(kindCStr);
+      if (needleCStr != null) malloc.free(needleCStr);
     }
   }
 

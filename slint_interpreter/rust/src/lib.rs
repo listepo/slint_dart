@@ -15,7 +15,7 @@ use slint::platform::software_renderer::{
 };
 use slint::ComponentHandle;
 use slint::PhysicalSize;
-use slint_dart_interpreter::{Definition, Engine, Instance};
+use slint_dart_interpreter::{describe_all, Definition, Engine, Instance};
 
 thread_local! {
     static LAST_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
@@ -363,6 +363,70 @@ pub extern "C" fn slint_interpreter_instance_key_event(
             handle.window.dispatch_event(event);
         }
     });
+}
+
+/// Finds elements in this instance's accessibility tree and returns them as a
+/// JSON array of descriptors — identity, accessible state, and geometry in
+/// Slint logical pixels relative to the window.
+///
+/// `kind` is one of `label`, `id`, `type`, or `all`; `needle` carries the text
+/// to match and may be null for `all`. This is what lets a test find a Slint
+/// element and work out where to click it; the descriptors match the ones
+/// `slint-testing-ffi` produces, because both come from `describe_all`.
+///
+/// Caller frees with [slint_interpreter_string_free]; null means error.
+#[no_mangle]
+pub extern "C" fn slint_interpreter_instance_query_elements(
+    instance: SlintInterpreterInstance,
+    kind: *const c_char,
+    needle: *const c_char,
+) -> *mut c_char {
+    clear_error();
+    if instance.0.is_null() || kind.is_null() {
+        set_error("instance and kind must not be null".into());
+        return ptr::null_mut();
+    }
+    match catch_unwind(|| {
+        let Ok(kind) = (unsafe { CStr::from_ptr(kind) }).to_str() else {
+            set_error("query kind is not valid UTF-8".into());
+            return ptr::null_mut();
+        };
+        let needle = if needle.is_null() {
+            None
+        } else {
+            match unsafe { CStr::from_ptr(needle) }.to_str() {
+                Ok(n) => Some(n),
+                Err(_) => {
+                    set_error("query value is not valid UTF-8".into());
+                    return ptr::null_mut();
+                }
+            }
+        };
+
+        let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
+        let found = match handle.core.query_elements(kind, needle) {
+            Ok(found) => found,
+            Err(e) => {
+                set_error(e);
+                return ptr::null_mut();
+            }
+        };
+        match describe_all(&found)
+            .and_then(|json| CString::new(json).map_err(|_| "json contains null byte".to_string()))
+        {
+            Ok(cstr) => cstr.into_raw(),
+            Err(e) => {
+                set_error(e);
+                ptr::null_mut()
+            }
+        }
+    }) {
+        Ok(ptr) => ptr,
+        Err(_) => {
+            set_error("panicked in slint_interpreter_instance_query_elements".into());
+            ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]

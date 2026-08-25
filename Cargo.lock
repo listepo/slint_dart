@@ -3951,6 +3951,7 @@ dependencies = [
 name = "slint-dart-interpreter"
 version = "0.1.0"
 dependencies = [
+ "i-slint-backend-testing",
  "serde_json",
  "slint",
  "slint-interpreter",
@@ -4016,6 +4017,16 @@ version = "0.1.0"
 dependencies = [
  "i-slint-core",
  "i-slint-renderer-skia",
+ "slint",
+ "slint-dart-interpreter",
+]
+
+[[package]]
+name = "slint-testing-ffi"
+version = "0.1.0"
+dependencies = [
+ "i-slint-backend-testing",
+ "serde_json",
  "slint",
  "slint-dart-interpreter",
 ]

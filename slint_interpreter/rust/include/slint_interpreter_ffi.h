@@ -57,6 +57,22 @@ void slint_interpreter_instance_key_event(SlintInterpreterInstance instance,
                                           const char *text,
                                           bool pressed);
 
+/**
+ * Finds elements in this instance's accessibility tree and returns them as a
+ * JSON array of descriptors — identity, accessible state, and geometry in
+ * Slint logical pixels relative to the window.
+ *
+ * `kind` is one of `label`, `id`, `type`, or `all`; `needle` carries the text
+ * to match and may be null for `all`. This is what lets a test find a Slint
+ * element and work out where to click it; the descriptors match the ones
+ * `slint-testing-ffi` produces, because both come from `describe_all`.
+ *
+ * Caller frees with [slint_interpreter_string_free]; null means error.
+ */
+char *slint_interpreter_instance_query_elements(SlintInterpreterInstance instance,
+                                                const char *kind,
+                                                const char *needle);
+
 char *slint_interpreter_instance_get_property(SlintInterpreterInstance instance, const char *name);
 
 bool slint_interpreter_instance_set_property(SlintInterpreterInstance instance,

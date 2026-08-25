@@ -9,6 +9,10 @@ use serde_json::Value as JsonValue;
 use slint::Model;
 use slint_interpreter::{Compiler, ComponentDefinition, ComponentInstance, Value};
 
+mod elements;
+pub use elements::describe_all;
+pub use i_slint_backend_testing::ElementHandle;
+
 /// Wraps slint_interpreter::Compiler for building and managing Slint components.
 pub struct Engine {
     compiler: Compiler,

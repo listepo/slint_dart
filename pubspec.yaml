@@ -11,5 +11,7 @@ workspace:
   - slint_generator
   - slint_interpreter
   - slint_skia
+  - slint_testing
+  - slint_patrol
   - examples/todo
 
