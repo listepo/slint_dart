@@ -7,7 +7,10 @@ abstract interface class SlintEngine {
   /// Compiles [source] and returns the exported component definitions.
   ///
   /// [path] is used for diagnostics and resolving relative imports.
-  Future<List<SlintComponentDefinition>> compile(String source, {String? path});
+  ///
+  /// Synchronous: compilation is one FFI call, so there is nothing to wait
+  /// for and a component can be on screen in the same frame it was asked for.
+  List<SlintComponentDefinition> compile(String source, {String? path});
 
   void dispose();
 }

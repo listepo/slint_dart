@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:build/build.dart';
 import 'package:slint_build/slint_build.dart' show packageRootFromConfig;
+import 'package:slint_generator/builder.dart' show slintStem;
 import 'package:slint_generator/slint_generator.dart';
 
 import 'src/generator.dart';
 
 /// Entry point for build_runner (wired up in `build.yaml`): turns every
-/// `*.slint` into a sibling `*.aot.g.dart` binding the AOT code asset.
+/// `ui/**.slint` into `lib/**.aot.g.dart` binding the AOT code asset — the
+/// same `ui/` the build hook AOT-compiles, so the asset ids line up.
 ///
 /// The typed API comes from the `*.g.dart` wrapper that `slint_generator`
 /// emits alongside it.
@@ -16,19 +18,12 @@ Builder slintAotBuilder(BuilderOptions options) => _SlintAotBuilder();
 class _SlintAotBuilder implements Builder {
   @override
   final Map<String, List<String>> buildExtensions = const {
-    '.slint': ['.aot.g.dart'],
+    '^ui/{{}}.slint': ['lib/{{}}.aot.g.dart'],
   };
 
   @override
   Future<void> build(BuildStep buildStep) async {
     final input = buildStep.inputId;
-    if (!input.path.startsWith('lib/')) {
-      throw StateError(
-        '${input.path}: .slint files must live under lib/ — the build hook '
-        'only AOT-compiles lib/**.slint, and the generated backend binds to '
-        'that code asset.',
-      );
-    }
     await buildStep.readAsString(input); // dependency tracking
 
     // build_runner runs from the package root; resolve the introspect tool
@@ -43,13 +38,13 @@ class _SlintAotBuilder implements Builder {
       introspectManifest: generatorRoot.resolve('rust/Cargo.toml'),
     );
 
-    final outputId = input.changeExtension('.aot.g.dart');
+    final assetLibraryPath = '${slintStem(input)}.aot.g.dart';
     await buildStep.writeAsString(
-      outputId,
+      AssetId(input.package, 'lib/$assetLibraryPath'),
       generateDartFromSchema(
         schema,
         packageName: input.package,
-        assetLibraryPath: outputId.path.substring('lib/'.length),
+        assetLibraryPath: assetLibraryPath,
         sourceName: input.pathSegments.last,
       ),
     );

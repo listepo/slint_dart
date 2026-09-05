@@ -8,13 +8,23 @@ import 'src/introspect.dart';
 import 'src/package_config.dart';
 
 /// Entry point for build_runner (wired up in `build.yaml`): turns every
-/// `*.slint` into a sibling `*.g.dart` of typed wrappers.
+/// `ui/**.slint` into `lib/**.g.dart` of typed wrappers.
+///
+/// The `.slint` files live outside `lib/` so they are plainly not Dart
+/// sources and never part of the package's public API; the generated Dart
+/// goes under `lib/` because that is the only place app code can import it
+/// from. `ui/` is a build_runner source only when the app's `build.yaml`
+/// lists it (see `examples/todo/build.yaml`).
 Builder slintBuilder(BuilderOptions options) => _SlintBuilder();
+
+/// `ui/<stem>.slint` → `<stem>`; the builder only ever sees such inputs.
+String slintStem(AssetId input) =>
+    input.path.substring('ui/'.length, input.path.length - '.slint'.length);
 
 class _SlintBuilder implements Builder {
   @override
   final Map<String, List<String>> buildExtensions = const {
-    '.slint': ['.g.dart'],
+    '^ui/{{}}.slint': ['lib/{{}}.g.dart'],
   };
 
   @override
@@ -41,17 +51,17 @@ class _SlintBuilder implements Builder {
       introspectManifest: generatorRoot.resolve('rust/Cargo.toml'),
     );
 
+    final stem = slintStem(input);
     await buildStep.writeAsString(
-      input.changeExtension('.g.dart'),
+      AssetId(input.package, 'lib/$stem.g.dart'),
       generateWrapperLibrary(
         schema,
         sourceName: input.pathSegments.last,
-        // Recorded for an app that ships this `.slint` as an asset; the
-        // wrapper does not read it on its own.
+        // The name `load` answers to; the wrapper never reads it.
         assetPath: input.path,
         slintSource: source,
         aotLibrary: deps.contains('slint_compiler')
-            ? input.changeExtension('.aot.g.dart').pathSegments.last
+            ? '${stem.split('/').last}.aot.g.dart'
             : null,
         interpreter: deps.contains('slint_interpreter'),
       ),

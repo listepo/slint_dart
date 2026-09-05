@@ -137,8 +137,8 @@ external bool _${lower}SetCallback(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi
 /// AOT backend for `$pascal`: instantiates the slint-build compiled component
 /// from the app's `slint-dart-aot` code asset, no interpreter involved.
 ///
-/// Pass it to the generated wrapper: `await $pascal.create(${aotFactoryName(pascal)})`
-/// — or just `await $pascal.create()`, which defaults to it in release builds.
+/// Pass it to the generated wrapper: `$pascal.create(${aotFactoryName(pascal)})`
+/// — or just `$pascal.create()`, which defaults to it in release builds.
 final ${aotFactoryName(pascal)} = SlintCompilerFactory(
   componentName: '$pascal',
   ops: SlintComponentOps(

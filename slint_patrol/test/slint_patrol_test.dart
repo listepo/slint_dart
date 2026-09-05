@@ -28,9 +28,9 @@ export component Form inherits Window {
 
 /// Compiles the source with the interpreter backend and returns the live
 /// component — the same one a debug build of a real app would run.
-Future<SlintSoftwareComponent> _liveComponent() async {
+SlintSoftwareComponent _liveComponent() {
   final engine = InterpreterSlintEngine();
-  final defs = await engine.compile(_source, path: 'test.slint');
+  final defs = engine.compile(_source, path: 'test.slint');
   final def = defs.firstWhere((d) => d.name == 'Form');
   return def.instantiate() as SlintSoftwareComponent;
 }
@@ -38,7 +38,7 @@ Future<SlintSoftwareComponent> _liveComponent() async {
 void main() {
   late SlintSoftwareComponent component;
 
-  setUp(() async => component = await _liveComponent());
+  setUp(() => component = _liveComponent());
   tearDown(() => component.dispose());
 
   Widget app() => MaterialApp(

@@ -7,9 +7,9 @@ import 'package:todo_example/todo.g.dart';
 /// under `flutter test` (always debug) the code asset is absent and the first
 /// FFI call throws — skip instead of failing; `flutter build --release`
 /// covers this path.
-Future<TodoApp?> _createOrSkip() async {
+TodoApp? _createOrSkip() {
   try {
-    return await TodoApp.create(aot.todoAppFactory);
+    return TodoApp.create(aot.todoAppFactory);
   } on ArgumentError catch (e) {
     markTestSkipped('AOT dylib is bundled only in release/profile builds: $e');
     return null;
@@ -17,14 +17,14 @@ Future<TodoApp?> _createOrSkip() async {
 }
 
 void main() {
-  test('creates TodoApp from the AOT-compiled component', () async {
-    final app = await _createOrSkip();
+  test('creates TodoApp from the AOT-compiled component', () {
+    final app = _createOrSkip();
     if (app == null) return;
     app.dispose();
   });
 
-  test('todo-model roundtrips as generated struct values', () async {
-    final app = await _createOrSkip();
+  test('todo-model roundtrips as generated struct values', () {
+    final app = _createOrSkip();
     if (app == null) return;
 
     app.todoModel = const [
@@ -40,8 +40,8 @@ void main() {
     app.dispose();
   });
 
-  test('callbacks fire with typed, named arguments', () async {
-    final app = await _createOrSkip();
+  test('callbacks fire with typed, named arguments', () {
+    final app = _createOrSkip();
     if (app == null) return;
 
     String? added;
@@ -63,8 +63,8 @@ void main() {
     app.dispose();
   });
 
-  test('renders to pixels', () async {
-    final app = await _createOrSkip();
+  test('renders to pixels', () {
+    final app = _createOrSkip();
     if (app == null) return;
     final target = app.renderTarget;
 

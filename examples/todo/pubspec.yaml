@@ -28,7 +28,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # lib/todo.slint is deliberately not an asset: the builder embeds its source
+  # ui/todo.slint is deliberately not an asset: the builder embeds its source
   # in todo.g.dart and the release build compiles it into the AOT dylib, so
   # bundling the file too would ship the UI source for nothing. Flutter has no
   # per-build-mode asset declaration, so "not bundled at all" is how a .slint

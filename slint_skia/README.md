@@ -95,8 +95,8 @@ ffigen --config ffigen.yaml
 import 'package:slint_skia/slint_skia.dart';
 
 final engine = SkiaSlintEngine();
-final defs = await engine.compile(slintSource);
-final component = await defs.first.instantiate();
+final defs = engine.compile(slintSource);
+final component = defs.firstWhere((d) => d.name == 'App').instantiate();
 
 component.setSize(400, 300);
 component.setProperty('value', 42);

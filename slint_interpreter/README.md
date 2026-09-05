@@ -20,22 +20,27 @@ Provides software-rendered component instances through a C ABI:
   embedded in a generated `*.g.dart` and instantiates the named component:
 
 ```dart
-final app = await TodoApp.create(SlintInterpreterFactory());
+final app = TodoApp.create(SlintInterpreterFactory(TodoApp.slintSource));
 ```
+
+The factory owns the source and `instantiate` is synchronous — compiling is
+one FFI call — so a generated wrapper mentions its embedded source only where
+it constructs this factory, and a release build drops both together.
 
 ## Loading a `.slint` file at runtime
 
 Compiling at runtime is what this backend is for, so it is the one that can
-turn an asset key into a component. It registers itself as the backend for
-`SlintComponent.load` the first time a `SlintInterpreterFactory` is
-constructed — which the generated wrappers do — so an app that uses
-`TodoApp.load()` never has to say anything. Without a wrapper, call
-`useSlintInterpreter()` once at startup:
+turn an asset key into a component. `SlintComponent.load(path)` never reads
+anything — it answers with the registered wrapper's embedded or compiled-in
+code; `SlintComponent.loadAsset` is for a file no wrapper was generated
+from. It installs itself as the backend the first time a
+`SlintInterpreterFactory` is constructed — which the generated wrappers do —
+or call `useSlintInterpreter()` once at startup:
 
 ```dart
 useSlintInterpreter();
 // assets/ui/dashboard.slint is declared under `flutter: assets:`
-final component = await SlintComponent.load('assets/ui/dashboard.slint',
+final component = await SlintComponent.loadAsset('assets/ui/dashboard.slint',
     component: 'Dashboard');
 runApp(SlintView(target: component.renderTarget));
 ```
@@ -43,17 +48,19 @@ runApp(SlintView(target: component.renderTarget));
 The path is a Flutter asset key, so the file must be declared under
 `flutter: assets:` — which also means it ships, in every build mode. Reach
 for this when that is the point (a theme pack, user-supplied UI), not to
-avoid regenerating: a wrapper's `TodoApp.load()` already carries its source
-and bundles nothing.
+avoid regenerating: a generated wrapper already carries its source and
+bundles nothing. It is also the one async entry point — reading the bundle
+is — where `SlintComponent.load` is synchronous.
 
 `component:` may be omitted only when the file exports exactly one — the
 compiler returns them unordered, so with several exports there is no
-meaningful "first" and `load` names what it found instead of guessing. The
+meaningful "first" and `loadAsset` names what it found instead of guessing. The
 engine is created on first use and shared across loads.
 
-Only this backend implements the hook. A release build ships the AOT backend,
-which has no compiler, so `SlintComponent.load` has nothing to route to —
-runtime `.slint` loading is an interpreter-only capability.
+Only this backend implements the hook. A release build ships the AOT
+backend, which has no compiler, so `SlintComponent.loadAsset` has nothing to
+route to — runtime `.slint` loading is an interpreter-only capability, while
+`SlintComponent.load` of a registered wrapper works in every mode.
 
 ## Inspecting the live component
 

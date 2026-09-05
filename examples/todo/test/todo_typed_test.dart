@@ -8,26 +8,26 @@ import 'package:todo_example/todo.g.dart';
 void main() {
   late SlintInterpreterFactory factory;
 
-  setUp(() => factory = SlintInterpreterFactory());
+  setUp(() => factory = SlintInterpreterFactory(TodoApp.slintSource));
   tearDown(() => factory.dispose());
 
-  test('create() defaults to the interpreter in debug builds', () async {
+  test('create() defaults to the interpreter in debug builds', () {
     // No factory passed: the generated defaultFactory follows the build mode,
     // and `flutter test` is always debug. Do not dispose it — it is shared.
     expect(TodoApp.defaultFactory, isA<SlintInterpreterFactory>());
-    final app = await TodoApp.create();
+    final app = TodoApp.create();
     expect(app.component, isA<InterpreterSlintComponent>());
     app.dispose();
   });
 
-  test('creates TodoApp from the embedded source', () async {
-    final app = await TodoApp.create(factory);
+  test('creates TodoApp from the embedded source', () {
+    final app = TodoApp.create(factory);
     expect(app.component, isA<InterpreterSlintComponent>());
     app.dispose();
   });
 
-  test('todo-model roundtrips as generated struct values', () async {
-    final app = await TodoApp.create(factory);
+  test('todo-model roundtrips as generated struct values', () {
+    final app = TodoApp.create(factory);
 
     app.todoModel = const [
       TodoItem(title: 'buy milk', checked: false),
@@ -43,8 +43,8 @@ void main() {
     app.dispose();
   });
 
-  test('callbacks fire with typed, named arguments', () async {
-    final app = await TodoApp.create(factory);
+  test('callbacks fire with typed, named arguments', () {
+    final app = TodoApp.create(factory);
 
     String? added;
     (int, bool)? toggled;
@@ -65,8 +65,8 @@ void main() {
     app.dispose();
   });
 
-  test('renders to pixels', () async {
-    final app = await TodoApp.create(factory);
+  test('renders to pixels', () {
+    final app = TodoApp.create(factory);
     final target = app.renderTarget;
 
     app.todoModel = const [TodoItem(title: 'test todo', checked: false)];
@@ -80,9 +80,9 @@ void main() {
     app.dispose();
   });
 
-  test('rejects a component the source does not export', () async {
+  test('rejects a component the source does not export', () {
     expect(
-      () => factory.instantiate(TodoApp.slintSource, 'NoSuchComponent'),
+      () => factory.instantiate('NoSuchComponent'),
       throwsA(isA<StateError>()),
     );
   });

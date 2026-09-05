@@ -8,7 +8,7 @@ import 'package:todo_example/todo.g.dart';
 void main() {
   late TodoApp app;
 
-  setUp(() async => app = await TodoApp.create());
+  setUp(() => app = TodoApp.create());
   tearDown(() => app.dispose());
 
   group('render target', () {

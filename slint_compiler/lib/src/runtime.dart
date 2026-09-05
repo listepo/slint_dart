@@ -78,7 +78,7 @@ final class SlintComponentOps {
 /// One instance per component, declared by the generated `*.aot.g.dart`:
 ///
 /// ```dart
-/// final app = await TodoApp.create(todoAppFactory);
+/// final app = TodoApp.create(todoAppFactory);
 /// ```
 final class SlintCompilerFactory extends SlintComponentFactory {
   const SlintCompilerFactory({required this.componentName, required this.ops});
@@ -89,12 +89,9 @@ final class SlintCompilerFactory extends SlintComponentFactory {
   /// The C entry points backing [componentName].
   final SlintComponentOps ops;
 
-  /// Ignores [source] — the component is already compiled into the code asset.
+  /// Needs no source — the component is already compiled into the code asset.
   @override
-  Future<SlintSoftwareComponent> instantiate(
-    String source,
-    String componentName,
-  ) async {
+  SlintSoftwareComponent instantiate(String componentName) {
     if (componentName != this.componentName) {
       throw ArgumentError.value(
         componentName,

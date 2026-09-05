@@ -4,12 +4,16 @@ library;
 
 import 'package:slint/slint_core.dart';
 import 'package:slint_generator/runtime.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:slint_interpreter/slint_interpreter.dart';
 
 import 'todo.aot.g.dart' as aot;
 
-/// `todo.slint`, embedded so interpreter backends can compile it at runtime.
+/// `todo.slint`, embedded so the interpreter can compile it at runtime.
+///
+/// Only the interpreter factory's construction names it, and in a build
+/// that defaults to the AOT backend that is a const-dead branch, so the tree
+/// shaker drops the string with it: the UI source is not in the shipped
+/// binary.
 const _source =
     "import { Button, CheckBox, LineEdit, ListView, VerticalBox, HorizontalBox } from \"std-widgets.slint\";\n\nexport struct TodoItem {\n    title: string,\n    checked: bool,\n}\n\n// Deliberately unreferenced by the Dart code: exists to prove the release\n// link hook tree-shakes components without a recorded use out of the dylib.\nexport component UnusedGadget inherits Window {\n    preferred-width: 200px;\n    preferred-height: 100px;\n    title: \"Never shipped\";\n\n    in property <string> label: \"unused\";\n    callback poke();\n\n    Text { text: root.label; }\n}\n\nexport component TodoApp inherits Window {\n    preferred-width: 400px;\n    preferred-height: 600px;\n    title: \"Slint ♥ Flutter — Todo\";\n\n    // Host (Dart) owns the list; this default renders before the host syncs.\n    in property <[TodoItem]> todo-model: [\n        { title: \"Wire Slint into Flutter\", checked: true },\n        { title: \"Render this list\", checked: false },\n    ];\n\n    // Named arguments carry through to the generated Dart signatures.\n    callback add-todo(title: string);\n    callback toggle-todo(index: int, checked: bool);\n    callback remove-done();\n\n    VerticalBox {\n        HorizontalBox {\n            padding: 0;\n            edit := LineEdit {\n                placeholder-text: \"What needs to be done?\";\n                accepted(text) => { root.add-todo(text); self.text = \"\"; }\n            }\n            Button {\n                text: \"Add\";\n                primary: true;\n                clicked => { root.add-todo(edit.text); edit.text = \"\"; }\n            }\n        }\n        ListView {\n            for item[index] in root.todo-model: HorizontalBox {\n                padding: 0;\n                CheckBox {\n                    text: item.title;\n                    checked: item.checked;\n                    toggled => { root.toggle-todo(index, self.checked); }\n                }\n            }\n        }\n        Button {\n            text: \"Remove done items\";\n            clicked => { root.remove-done(); }\n        }\n    }\n}\n";
 
@@ -54,9 +58,10 @@ class TodoItem {
 /// Typed wrapper for the `TodoApp` component of `todo.slint`.
 ///
 /// ```dart
-/// final app = await TodoApp.create();
+/// TodoApp.register(); // once, at startup
+/// final app = SlintComponent.load<TodoApp>('ui/todo.slint');
 /// ```
-class TodoApp {
+class TodoApp implements SlintSoftwareComponent {
   TodoApp(this.component);
 
   /// Name of the exported component this wrapper drives.
@@ -72,45 +77,76 @@ class TodoApp {
   /// Created once, on first use, and shared by every instance.
   static final SlintComponentFactory defaultFactory = _useCompiled
       ? aot.todoAppFactory
-      : SlintInterpreterFactory();
+      : SlintInterpreterFactory(_source);
 
   /// Instantiates `TodoApp` through [factory], or [defaultFactory].
-  static Future<TodoApp> create([SlintComponentFactory? factory]) async =>
-      TodoApp(
-        await (factory ?? defaultFactory).instantiate(_source, componentName),
+  static TodoApp create([SlintComponentFactory? factory]) =>
+      TodoApp((factory ?? defaultFactory).instantiate(componentName));
+
+  /// Path of the `.slint` file this wrapper was generated from — the name
+  /// [load] answers to.
+  ///
+  /// The source at that path is embedded below and, in release, compiled
+  /// into the app's own binary, so the file itself never has to ship.
+  static const assetPath = 'ui/todo.slint';
+
+  /// Instantiates `TodoApp` from the `.slint` file at [path].
+  /// Debug builds compile the source captured at generation time with the
+  /// interpreter; release and profile builds use the component slint-build
+  /// compiled into the app. Neither reads the file.
+  ///
+  /// [path] names the UI the same way in every build mode; what backs it is
+  /// whatever that mode compiled. It must be a single `.slint` file, and it
+  /// must be [assetPath] — this wrapper was generated from that file. To
+  /// compile some *other* `.slint` at runtime, which only the interpreter can
+  /// do, use [SlintComponent.loadAsset].
+  ///
+  /// Synchronous: the instance is usable — and renderable — on return.
+  static TodoApp load(String path) {
+    if (!path.endsWith('.slint')) {
+      throw ArgumentError.value(path, 'path', 'not a .slint file');
+    }
+    if (path != assetPath) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'TodoApp was generated from $assetPath',
       );
+    }
+    return TodoApp(defaultFactory.instantiate(componentName));
+  }
 
-  /// Path of the `.slint` file this wrapper was generated from.
+  /// Makes `SlintComponent.load(assetPath)` return a `TodoApp`.
   ///
-  /// The source at that path is embedded below, so nothing has to be
-  /// bundled. It is an asset key only for an app that deliberately ships
-  /// the `.slint` and passes it to [load].
-  static const assetPath = 'lib/todo.slint';
-
-  /// Instantiates `TodoApp` from the source captured at generation time.
-  ///
-  /// Pass [path] — an asset key, declared under `flutter: assets:` — to
-  /// compile a `.slint` shipped with the app instead.
-  /// Release and profile builds use the AOT-compiled component and
-  /// ignore [path], matching [defaultFactory].
-  static Future<TodoApp> load({
-    String? path,
-    SlintComponentFactory? factory,
-  }) async => TodoApp(
-    await (factory ?? defaultFactory).instantiate(
-      path == null || _useCompiled
-          ? _source
-          : await rootBundle.loadString(path),
-      componentName,
-    ),
-  );
+  /// Call once at startup. Registration is per component, not per file, so
+  /// a component the app never registers is still tree-shaken out of a
+  /// release build.
+  static void register() =>
+      SlintComponent.register<TodoApp>(assetPath, componentName, create);
 
   /// The backing instance — use it for untyped property/callback access.
   final SlintSoftwareComponent component;
 
+  @override
   SlintSoftwareRenderTarget get renderTarget => component.renderTarget;
 
+  @override
   void dispose() => component.dispose();
+
+  @override
+  Object? getProperty(String name) => component.getProperty(name);
+
+  @override
+  void setProperty(String name, Object? value) =>
+      component.setProperty(name, value);
+
+  @override
+  void setCallbackHandler(String name, SlintCallbackHandler handler) =>
+      component.setCallbackHandler(name, handler);
+
+  @override
+  Object? invokeCallback(String name, List<Object?> arguments) =>
+      component.invokeCallback(name, arguments);
 
   List<TodoItem> get todoModel => [
     for (final e in component.getProperty('todo-model') as List<Object?>)
@@ -155,9 +191,10 @@ class TodoApp {
 /// Typed wrapper for the `UnusedGadget` component of `todo.slint`.
 ///
 /// ```dart
-/// final app = await UnusedGadget.create();
+/// UnusedGadget.register(); // once, at startup
+/// final app = SlintComponent.load<UnusedGadget>('ui/todo.slint');
 /// ```
-class UnusedGadget {
+class UnusedGadget implements SlintSoftwareComponent {
   UnusedGadget(this.component);
 
   /// Name of the exported component this wrapper drives.
@@ -173,45 +210,76 @@ class UnusedGadget {
   /// Created once, on first use, and shared by every instance.
   static final SlintComponentFactory defaultFactory = _useCompiled
       ? aot.unusedGadgetFactory
-      : SlintInterpreterFactory();
+      : SlintInterpreterFactory(_source);
 
   /// Instantiates `UnusedGadget` through [factory], or [defaultFactory].
-  static Future<UnusedGadget> create([SlintComponentFactory? factory]) async =>
-      UnusedGadget(
-        await (factory ?? defaultFactory).instantiate(_source, componentName),
+  static UnusedGadget create([SlintComponentFactory? factory]) =>
+      UnusedGadget((factory ?? defaultFactory).instantiate(componentName));
+
+  /// Path of the `.slint` file this wrapper was generated from — the name
+  /// [load] answers to.
+  ///
+  /// The source at that path is embedded below and, in release, compiled
+  /// into the app's own binary, so the file itself never has to ship.
+  static const assetPath = 'ui/todo.slint';
+
+  /// Instantiates `UnusedGadget` from the `.slint` file at [path].
+  /// Debug builds compile the source captured at generation time with the
+  /// interpreter; release and profile builds use the component slint-build
+  /// compiled into the app. Neither reads the file.
+  ///
+  /// [path] names the UI the same way in every build mode; what backs it is
+  /// whatever that mode compiled. It must be a single `.slint` file, and it
+  /// must be [assetPath] — this wrapper was generated from that file. To
+  /// compile some *other* `.slint` at runtime, which only the interpreter can
+  /// do, use [SlintComponent.loadAsset].
+  ///
+  /// Synchronous: the instance is usable — and renderable — on return.
+  static UnusedGadget load(String path) {
+    if (!path.endsWith('.slint')) {
+      throw ArgumentError.value(path, 'path', 'not a .slint file');
+    }
+    if (path != assetPath) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'UnusedGadget was generated from $assetPath',
       );
+    }
+    return UnusedGadget(defaultFactory.instantiate(componentName));
+  }
 
-  /// Path of the `.slint` file this wrapper was generated from.
+  /// Makes `SlintComponent.load(assetPath)` return a `UnusedGadget`.
   ///
-  /// The source at that path is embedded below, so nothing has to be
-  /// bundled. It is an asset key only for an app that deliberately ships
-  /// the `.slint` and passes it to [load].
-  static const assetPath = 'lib/todo.slint';
-
-  /// Instantiates `UnusedGadget` from the source captured at generation time.
-  ///
-  /// Pass [path] — an asset key, declared under `flutter: assets:` — to
-  /// compile a `.slint` shipped with the app instead.
-  /// Release and profile builds use the AOT-compiled component and
-  /// ignore [path], matching [defaultFactory].
-  static Future<UnusedGadget> load({
-    String? path,
-    SlintComponentFactory? factory,
-  }) async => UnusedGadget(
-    await (factory ?? defaultFactory).instantiate(
-      path == null || _useCompiled
-          ? _source
-          : await rootBundle.loadString(path),
-      componentName,
-    ),
-  );
+  /// Call once at startup. Registration is per component, not per file, so
+  /// a component the app never registers is still tree-shaken out of a
+  /// release build.
+  static void register() =>
+      SlintComponent.register<UnusedGadget>(assetPath, componentName, create);
 
   /// The backing instance — use it for untyped property/callback access.
   final SlintSoftwareComponent component;
 
+  @override
   SlintSoftwareRenderTarget get renderTarget => component.renderTarget;
 
+  @override
   void dispose() => component.dispose();
+
+  @override
+  Object? getProperty(String name) => component.getProperty(name);
+
+  @override
+  void setProperty(String name, Object? value) =>
+      component.setProperty(name, value);
+
+  @override
+  void setCallbackHandler(String name, SlintCallbackHandler handler) =>
+      component.setCallbackHandler(name, handler);
+
+  @override
+  Object? invokeCallback(String name, List<Object?> arguments) =>
+      component.invokeCallback(name, arguments);
 
   String get label => component.getProperty('label') as String;
   set label(String value) => component.setProperty('label', value);

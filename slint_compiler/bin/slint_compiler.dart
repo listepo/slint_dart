@@ -3,16 +3,17 @@ import 'dart:io';
 import 'package:slint_compiler/slint_compiler.dart';
 import 'package:slint_generator/slint_generator.dart';
 
-/// Usage: `dart run slint_compiler <input.slint> [output.g.dart]`
+/// Usage: `dart run slint_compiler ui/<name>.slint`
 ///
-/// Writes both generated libraries: the typed wrapper `<output>.g.dart` and
-/// the AOT backend `<output>.aot.g.dart` next to it. Default output:
-/// `<input directory>/<basename>.g.dart`. It must live under a package's
-/// `lib/` — the AOT backend binds to the code asset
-/// `package:<package>/<path under lib>` built by the app's hook.
+/// Writes both generated libraries into the package's `lib/`: the typed
+/// wrapper `lib/<name>.g.dart` and the AOT backend `lib/<name>.aot.g.dart`.
+/// The input must live under the package's `ui/` — the tree the app's build
+/// hook compiles, and the path the wrapper's `load()` answers to — and the
+/// AOT backend binds to the code asset `package:<package>/<name>.aot.g.dart`
+/// built by that hook.
 Future<void> main(List<String> args) async {
-  if (args.isEmpty || args.length > 2) {
-    stderr.writeln('usage: dart run slint_compiler <input.slint> [output.g.dart]');
+  if (args.length != 1) {
+    stderr.writeln('usage: dart run slint_compiler ui/<name>.slint');
     exit(64);
   }
   final input = File(args[0]);
@@ -20,15 +21,10 @@ Future<void> main(List<String> args) async {
     stderr.writeln('not found: ${input.path}');
     exit(66);
   }
-  final output = File(
-    args.length == 2
-        ? args[1]
-        : input.path.replaceFirst(RegExp(r'\.slint$'), '.g.dart'),
-  );
 
-  // Locate the enclosing package: walk up from the output to pubspec.yaml.
+  // Locate the enclosing package: walk up from the input to pubspec.yaml.
   final sep = Platform.pathSeparator;
-  var dir = output.absolute.parent;
+  var dir = input.absolute.parent;
   Directory? packageRoot;
   while (true) {
     if (File('${dir.path}${sep}pubspec.yaml').existsSync()) {
@@ -39,7 +35,7 @@ Future<void> main(List<String> args) async {
     dir = dir.parent;
   }
   if (packageRoot == null) {
-    stderr.writeln('${output.path}: not inside a Dart package (no pubspec.yaml found)');
+    stderr.writeln('${input.path}: not inside a Dart package (no pubspec.yaml found)');
     exit(64);
   }
   final pubspec = File('${packageRoot.path}${sep}pubspec.yaml').readAsStringSync();
@@ -49,23 +45,29 @@ Future<void> main(List<String> args) async {
     stderr.writeln('${packageRoot.path}${sep}pubspec.yaml: no `name:` entry');
     exit(64);
   }
-  final libDir = '${packageRoot.path}${sep}lib$sep';
-  if (!output.absolute.path.startsWith(libDir)) {
-    stderr.writeln('${output.path}: output must live under ${packageRoot.path}${sep}lib$sep');
+  final uiDir = '${packageRoot.path}${sep}ui$sep';
+  if (!input.absolute.path.startsWith(uiDir) ||
+      !input.path.endsWith('.slint')) {
+    stderr.writeln('${input.path}: input must be a .slint under $uiDir');
     exit(64);
   }
+  // `ui/a/b.slint` → `a/b`: the same stem the build_runner builders use.
+  final stem = input.absolute.path
+      .substring(uiDir.length, input.absolute.path.length - '.slint'.length)
+      .replaceAll(sep, '/');
+  final libDir = '${packageRoot.path}${sep}lib$sep';
+  final output = File('$libDir$stem.g.dart');
+  final aotOutput = File('$libDir$stem.aot.g.dart');
+  output.parent.createSync(recursive: true);
 
   final schema = await introspectSlint(input.absolute.path);
   final sourceName = input.uri.pathSegments.last;
-
-  final aotOutput = File(
-    output.path.replaceFirst(RegExp(r'(\.g)?\.dart$'), '.aot.g.dart'),
-  );
 
   output.writeAsStringSync(generateWrapperLibrary(
     schema,
     sourceName: sourceName,
     slintSource: input.readAsStringSync(),
+    assetPath: 'ui/$stem.slint',
     // The AOT backend is always written next to the wrapper here; the
     // interpreter is only a default when the package can import it.
     aotLibrary: aotOutput.uri.pathSegments.last,
@@ -75,8 +77,7 @@ Future<void> main(List<String> args) async {
   aotOutput.writeAsStringSync(generateDartFromSchema(
     schema,
     packageName: packageName,
-    assetLibraryPath:
-        aotOutput.absolute.path.substring(libDir.length).replaceAll(sep, '/'),
+    assetLibraryPath: '$stem.aot.g.dart',
     sourceName: sourceName,
   ));
   stdout.writeln('generated ${output.path} and ${aotOutput.path}');

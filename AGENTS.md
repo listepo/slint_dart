@@ -103,12 +103,53 @@ release builds (fat LTO) take minutes; run them in the background.
   test asserts no `loadString(assetPath)` slips back in. `examples/todo`'s
   assetless `flutter:` section and its "nothing reads the bundle unless a path
   says so" test are the regression guards — don't "fix" either.
-- **`SlintComponent.load` routes through the `SlintComponent.loader` hook**
-  rather than importing a backend, which is what keeps `slint_core.dart` free
-  of any Flutter import: reading the bundle is `slint_interpreter`'s job
-  (`useSlintInterpreter`, registered from the factory constructor). AOT has no
-  runtime compiler, so the generated `load` ignores `path` in release and uses
-  the compiled-in component — that fallback is the feature, not a gap to close.
+- **`.slint` files live in `ui/`, generated Dart in `lib/`.** Both builders
+  match `^ui/{{}}.slint` and write `lib/{{}}.g.dart` / `.aot.g.dart`; the
+  AOT build hook compiles `ui/**.slint`; the code asset id stays
+  `package:<app>/<stem>.aot.g.dart`. build_runner does not scan `ui/` by
+  default — an app must list it under `targets.$default.sources` in its
+  `build.yaml` (`examples/todo/build.yaml`), or the builders silently see no
+  input. Nothing under `lib/` is ever a `.slint` again: the point is that
+  the UI source is plainly not Dart and plainly not an asset.
+- **The build mode is baked in at codegen, not resolved at runtime.** A
+  generated wrapper's `load(path)` goes through `defaultFactory`, which is
+  `_useCompiled ? aot.<x>Factory : SlintInterpreterFactory(_source)` — and
+  `_useCompiled` is a `const`, so the branch that build does not take is dead
+  code the tree shaker drops. Don't turn that into a runtime lookup: the
+  point is that a release binary contains no interpreter path at all.
+- **The embedded source reaches the interpreter only through its factory's
+  constructor**, inside that dead branch. `SlintComponentFactory.instantiate`
+  takes a component name and nothing else, so the AOT path never mentions
+  `_source` and a release snapshot carries no copy of the `.slint` text. An
+  emitter test counts the mentions of `_source` (declaration, `slintSource`
+  alias, one factory construction). Don't add a `source` parameter back to
+  `instantiate` "for symmetry" — it would put the UI source in every release
+  binary.
+- **Everything from `.slint` to instance is synchronous.** `SlintEngine.compile`
+  and `SlintComponentFactory.instantiate` are single FFI calls and return
+  plain values; `SlintComponent.load` and a generated `load`/`create` return
+  the wrapper, not a Future. The only async entry point is
+  `SlintComponent.loadAsset`, because it reads the asset bundle. Don't
+  reintroduce `Future` on the sync path: an app relies on
+  `SlintComponent.load(...)` being usable in `initState` with no loading
+  state.
+- **`SlintComponent.load(path)` is a registry, and registration is per
+  component.** The core class knows no generated code and Dart has no static
+  initializers, so the app calls the generated `TodoApp.register()` once at
+  startup (`examples/todo/lib/main.dart`); `load` then builds through the
+  wrapper's `defaultFactory`. There is deliberately no per-file
+  `registerTodoSlint()`: it would reference every component's AOT factory,
+  give `UnusedGadget` a recorded use, and defeat tree-shaking — an emitter
+  test asserts no such function is emitted. Both `load`s accept exactly one
+  `.slint` path; `component:` or the type argument disambiguates a file that
+  registered several.
+- **A generated `load` never reads its `.slint`, in either mode.** `path` is
+  the UI's name, checked against `assetPath`; the source comes from the
+  `.g.dart` in debug and from the AOT dylib in release. Reading a file from
+  the bundle is `SlintComponent.loadAsset`'s job — the interpreter-only
+  fallback for a `.slint` no wrapper was generated from, and debug-only
+  because AOT has no runtime compiler. That gap is the feature, not something
+  to close.
 - **Element queries live in `slint-dart-interpreter`** (`elements.rs`), not in
   either FFI crate: `slint-testing-ffi` and `slint-interpreter-ffi` both call
   `query_elements`/`describe_all`, so a headless test and a `slint_patrol`

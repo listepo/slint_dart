@@ -52,10 +52,6 @@ String generateWrapperLibrary(
 
   final imports = StringBuffer("import 'package:slint/slint_core.dart';\n"
       "import 'package:slint_generator/runtime.dart';\n");
-  if (interpreter && assetPath != null) {
-    imports.write(
-        "import 'package:flutter/services.dart' show rootBundle;\n");
-  }
   if (interpreter) {
     imports
         .write("import 'package:slint_interpreter/slint_interpreter.dart';\n");
@@ -70,7 +66,12 @@ String generateWrapperLibrary(
 library;
 
 $imports
-/// `$sourceName`, embedded so interpreter backends can compile it at runtime.
+/// `$sourceName`, embedded so the interpreter can compile it at runtime.
+///
+/// Only the interpreter factory's construction names it, and in a build
+/// that defaults to the AOT backend that is a const-dead branch, so the tree
+/// shaker drops the string with it: the UI source is not in the shipped
+/// binary.
 const _source = ${dartStringLiteral(slintSource)};
 ''');
 
@@ -342,20 +343,20 @@ String _componentDart(
   final aotFactory = aotLibrary == null ? null : 'aot.${aotFactoryName(pascal)}';
   final (defaultFactory, defaultDoc) = switch ((aotFactory, interpreter)) {
     (final String f, true) => (
-        '_useCompiled ? $f : SlintInterpreterFactory()',
+        '_useCompiled ? $f : SlintInterpreterFactory(_source)',
         'the AOT-compiled component in release and profile builds, the\n'
             '  /// interpreter in debug, matching the dylib the build bundles',
       ),
     (final String f, false) => (f, 'the AOT-compiled component'),
-    (null, true) => ('SlintInterpreterFactory()', 'the interpreter'),
+    (null, true) => ('SlintInterpreterFactory(_source)', 'the interpreter'),
     (null, false) => (null, ''),
   };
 
   final create = defaultFactory == null
       ? '''
   /// Instantiates `$pascal` through [factory].
-  static Future<$pascal> create(SlintComponentFactory factory) async =>
-      $pascal(await factory.instantiate(_source, componentName));
+  static $pascal create(SlintComponentFactory factory) =>
+      $pascal(factory.instantiate(componentName));
 '''
       : '''
   /// Backend [create] uses when given none —
@@ -365,55 +366,77 @@ String _componentDart(
   static final SlintComponentFactory defaultFactory = $defaultFactory;
 
   /// Instantiates `$pascal` through [factory], or [defaultFactory].
-  static Future<$pascal> create([SlintComponentFactory? factory]) async =>
-      $pascal(await (factory ?? defaultFactory)
-          .instantiate(_source, componentName));
+  static $pascal create([SlintComponentFactory? factory]) =>
+      $pascal((factory ?? defaultFactory).instantiate(componentName));
 ''';
 
-  // Reading an asset only means something when a backend can compile it at
-  // runtime; an AOT-only wrapper already contains the component. Without an
-  // explicit path there is no bundle access at all, so shipping the `.slint`
-  // stays the app's decision rather than this wrapper's.
-  final loadSource = interpreter
-      ? (aotFactory == null
-          ? 'path == null\n              ? _source\n'
-              '              : await rootBundle.loadString(path)'
-          : 'path == null || _useCompiled\n              ? _source\n'
-              '              : await rootBundle.loadString(path)')
-      : '_source';
-  final loadDoc = interpreter && aotFactory != null
-      ? '\n  /// Release and profile builds use the AOT-compiled component and\n'
-          '  /// ignore [path], matching [defaultFactory].'
+  // The mode split lives in `defaultFactory`, whose `_useCompiled` is a
+  // const: a release build initializes it to the AOT factory and the
+  // interpreter branch — the only mention of `_source` — is dead code the
+  // tree shaker drops, string and all. Emitting two literal bodies here
+  // instead would need a factory per branch, and constructing
+  // `SlintInterpreterFactory(_source)` per call leaks an engine.
+  final loadModeDoc = (interpreter && aotFactory != null)
+      ? '''
+  /// Debug builds compile the source captured at generation time with the
+  /// interpreter; release and profile builds use the component slint-build
+  /// compiled into the app. Neither reads the file.'''
       : (interpreter
-          ? ''
-          : '\n  /// This backend compiles components at build time, so [path]\n'
-              '  /// is ignored and the compiled-in component is used.');
+          ? '''
+  /// Compiles the source captured at generation time with the interpreter;
+  /// the file itself is never read.'''
+          : '''
+  /// Uses the component slint-build compiled into the app; the file itself
+  /// is never read.''');
+
   final load = (defaultFactory == null || assetPath == null)
       ? ''
       : '''
 
-  /// Path of the `.slint` file this wrapper was generated from.
+  /// Path of the `.slint` file this wrapper was generated from — the name
+  /// [load] answers to.
   ///
-  /// The source at that path is embedded below, so nothing has to be
-  /// bundled. It is an asset key only for an app that deliberately ships
-  /// the `.slint` and passes it to [load].
+  /// The source at that path is embedded below and, in release, compiled
+  /// into the app's own binary, so the file itself never has to ship.
   static const assetPath = '$assetPath';
 
-  /// Instantiates `$pascal` from the source captured at generation time.
+  /// Instantiates `$pascal` from the `.slint` file at [path].
+$loadModeDoc
   ///
-  /// Pass [path] — an asset key, declared under `flutter: assets:` — to
-  /// compile a `.slint` shipped with the app instead.$loadDoc
-  static Future<$pascal> load({
-    String? path,
-    SlintComponentFactory? factory,
-  }) async =>
-      $pascal(await (factory ?? defaultFactory).instantiate(
-          $loadSource, componentName));
+  /// [path] names the UI the same way in every build mode; what backs it is
+  /// whatever that mode compiled. It must be a single `.slint` file, and it
+  /// must be [assetPath] — this wrapper was generated from that file. To
+  /// compile some *other* `.slint` at runtime, which only the interpreter can
+  /// do, use [SlintComponent.loadAsset].
+  ///
+  /// Synchronous: the instance is usable — and renderable — on return.
+  static $pascal load(String path) {
+    if (!path.endsWith('.slint')) {
+      throw ArgumentError.value(path, 'path', 'not a .slint file');
+    }
+    if (path != assetPath) {
+      throw ArgumentError.value(
+          path, 'path', '$pascal was generated from \$assetPath');
+    }
+    return $pascal(defaultFactory.instantiate(componentName));
+  }
+
+  /// Makes `SlintComponent.load(assetPath)` return a `$pascal`.
+  ///
+  /// Call once at startup. Registration is per component, not per file, so
+  /// a component the app never registers is still tree-shaken out of a
+  /// release build.
+  static void register() =>
+      SlintComponent.register<$pascal>(assetPath, componentName, create);
 ''';
 
-  final example = defaultFactory == null
-      ? 'final app = await $pascal.create(SlintInterpreterFactory());'
-      : 'final app = await $pascal.create();';
+  final example = switch ((defaultFactory, assetPath)) {
+    (null, _) =>
+      'final app = $pascal.create(SlintInterpreterFactory($pascal.slintSource));',
+    (_, null) => 'final app = $pascal.create();',
+    (_, final path) =>
+      "$pascal.register(); // once, at startup\n/// final app = SlintComponent.load<$pascal>('$path');",
+  };
 
   return '''
 
@@ -422,7 +445,7 @@ String _componentDart(
 /// ```dart
 /// $example
 /// ```
-class $pascal {
+class $pascal implements SlintSoftwareComponent {
   $pascal(this.component);
 
   /// Name of the exported component this wrapper drives.
@@ -435,9 +458,26 @@ $create$load
   /// The backing instance — use it for untyped property/callback access.
   final SlintSoftwareComponent component;
 
+  @override
   SlintSoftwareRenderTarget get renderTarget => component.renderTarget;
 
+  @override
   void dispose() => component.dispose();
+
+  @override
+  Object? getProperty(String name) => component.getProperty(name);
+
+  @override
+  void setProperty(String name, Object? value) =>
+      component.setProperty(name, value);
+
+  @override
+  void setCallbackHandler(String name, SlintCallbackHandler handler) =>
+      component.setCallbackHandler(name, handler);
+
+  @override
+  Object? invokeCallback(String name, List<Object?> arguments) =>
+      component.invokeCallback(name, arguments);
 $members}
 ''';
 }

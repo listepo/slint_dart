@@ -21,10 +21,14 @@ foo.slint ──▶ slint-introspect (rust/) ──▶ schema ──▶ build_ru
   backend-agnostic:
 
 ```dart
-final app = await TodoApp.create();                            // default backend
-final app = await TodoApp.create(SlintInterpreterFactory());   // interpreter
-final app = await TodoApp.create(todoAppFactory);              // AOT backend
+final app = TodoApp.create();                                            // default backend
+final app = TodoApp.create(SlintInterpreterFactory(TodoApp.slintSource)); // interpreter
+final app = TodoApp.create(todoAppFactory);                              // AOT backend
 ```
+
+Everything is synchronous: compiling with the interpreter and creating an AOT
+instance are each a single FFI call, so there is nothing to await and the
+instance is renderable on return.
 
 `defaultFactory` is generated from the backends the package depends on: with
 both, it follows the build mode (`dart.vm.product`/`dart.vm.profile` — the
@@ -32,35 +36,59 @@ same condition as Flutter's `kDebugMode`, so it matches the dylib the build
 hooks bundle); with one, it is that one; with neither, `create` requires an
 explicit factory. It is created once and shared.
 
-### `load` — the no-argument entry point
+### `load` — naming the UI by its `.slint` path
 
-`load()` is `create()` without having to name a factory, and it is what an
-app calls:
+An app names a UI by its `.slint` path in every build mode; what backs that
+path is the build's business:
 
 ```dart
-final app = await TodoApp.load();                              // embedded source
-final app = await TodoApp.load(path: 'assets/ui/todo.slint');  // from the bundle
+TodoApp.register();                                        // once, at startup
+final TodoApp app = SlintComponent.load('ui/todo.slint');  // or TodoApp.assetPath
+final app2 = TodoApp.load('ui/todo.slint');                // same, no registry
 ```
 
-**Nothing is bundled by default.** `load()` uses the source the builder
-captured, which is already in the `.g.dart`; it never touches the asset
-bundle unless you pass `path`. That keeps the `.slint` out of the shipped
-app — Flutter declares assets per package, not per build mode, so an asset
+`register()` is generated per component and puts `create` into
+`SlintComponent`'s path registry; `SlintComponent.load` returns whatever was
+registered for the path, typed by its type argument (inferred from the
+assignment). It is per component, never per file: a `registerTodoSlint()`
+would reference every component's AOT factory and defeat tree-shaking.
+
+The mode split is generated, not resolved at runtime: `defaultFactory` is
+`_useCompiled ? aot.todoAppFactory : SlintInterpreterFactory(_source)`, and
+`_useCompiled` is a `const`. A release build initializes it to the AOT
+factory and the interpreter branch is dead code the tree shaker drops; a
+debug build does the reverse. `load` reuses that one cached factory rather
+than building one per call.
+
+**The source ships only with the interpreter.** `_source` — the `.slint`
+text the builder embedded — is handed to the interpreter factory's
+constructor inside that dead branch and nowhere else (`instantiate` takes
+only a component name), so a release snapshot carries no copy of it: the UI
+source exists in the product only as slint-build compiled code. An emitter
+test counts the mentions.
+
+**Nothing is bundled, ever.** `.slint` files live under `ui/`, outside
+`lib/`, and the generated wrapper has no asset access at all: the source it
+compiles is the one the builder captured into `lib/*.g.dart`, and release
+compiles it into the binary. That keeps the `.slint` out of the shipped app
+— Flutter declares assets per package, not per build mode, so an asset
 declared for debug convenience would ride along into release and put the UI
 source in the product.
 
-`path` is for the opposite case: an app that deliberately ships `.slint`
-files to compile at runtime (a theme pack, user-supplied UI). Declare them
-under `flutter: assets:` and pass the key. Compiling at runtime needs the
-interpreter, so a release build ignores `path` and uses the AOT component —
-there is no compiler in a shipped AOT binary to hand the source to.
+`path` is one `.slint` file — anything else is an `ArgumentError` before the
+path is even compared — and it must be [assetPath], the file this wrapper was
+generated from.
+Passing another one throws rather than quietly rendering the wrong UI; to
+compile a *different* `.slint` at runtime, which only the interpreter can do,
+use `SlintComponent.loadAsset` and see `slint_interpreter`.
 
-`assetPath` is generated alongside as the path the builder read, for an app
-that does ship that file. `load` itself is only generated when there is a
-`defaultFactory` to run it on.
+`create()` is the same thing without a path, for code that already knows
+which component it wants. `load` and `assetPath` are only generated when
+there is a `defaultFactory` to run them on.
 
-For a component with no generated wrapper, `SlintComponent.load(assetKey)`
-is the untyped equivalent — see `slint_interpreter`.
+Generated wrappers implement `SlintSoftwareComponent`, so a typed wrapper
+goes anywhere an untyped component does — `SlintView`, `slint_testing`,
+`slint_patrol`.
 
 ## Two entry points
 
@@ -90,14 +118,24 @@ dev_dependencies:
   build_runner: ^2.16.0
 ```
 
+Put `.slint` files under `ui/` — build_runner does not scan that directory
+on its own, so list it in the app's `build.yaml`:
+
+```yaml
+# build.yaml of the app
+targets:
+  $default:
+    sources: [lib/**, test/**, ui/**, pubspec.yaml, $package$]
+```
+
 ```bash
-dart run build_runner build
+dart run build_runner build   # ui/todo.slint → lib/todo.g.dart
 ```
 
 ```dart
 import 'todo.g.dart';
 
-final app = await TodoApp.create(SlintInterpreterFactory());
+final app = TodoApp.load('ui/todo.slint');
 app.todoModel = [
   const TodoItem(title: 'Learn Slint', checked: false),
 ];

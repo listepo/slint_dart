@@ -14,9 +14,9 @@ import 'package:test/test.dart';
 void main() {
   test('adding a todo tells the app what to add', () {
     final app = SlintTestApp.compile(
-      File('lib/todo.slint').readAsStringSync(),
+      File('ui/todo.slint').readAsStringSync(),
       component: 'TodoApp',
-      path: 'lib/todo.slint',
+      path: 'ui/todo.slint',
     );
     addTearDown(app.dispose);
 

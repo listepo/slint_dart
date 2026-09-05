@@ -181,10 +181,10 @@ class SkiaSlintEngine implements SlintEngine {
   }
 
   @override
-  Future<List<SlintComponentDefinition>> compile(
+  List<SlintComponentDefinition> compile(
     String source, {
     String? path,
-  }) async {
+  }) {
     final sourceCString = source.toNativeUtf8();
     final pathCString = (path ?? '').toNativeUtf8();
 

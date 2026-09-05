@@ -8,7 +8,7 @@ import 'package:todo_example/todo.g.dart';
 /// catches that — the stale file still compiles.
 void main() {
   test('the generated wrapper embeds the current todo.slint', () {
-    final onDisk = File('lib/todo.slint').readAsStringSync();
+    final onDisk = File('ui/todo.slint').readAsStringSync();
     expect(
       TodoApp.slintSource,
       onDisk,

@@ -27,7 +27,7 @@ String _wrapper(
   SlintSchema schema, {
   String? aotLibrary,
   bool interpreter = false,
-  String? assetPath = 'lib/todo.slint',
+  String? assetPath = 'ui/todo.slint',
   String slintSource = 'export component TodoApp {}',
 }) =>
     generateWrapperLibrary(
@@ -73,7 +73,7 @@ void main() {
   group('backend defaulting', () {
     test('with neither backend, create requires an explicit factory', () {
       final out = _wrapper(_schema());
-      expect(out, containsCode('static Future<TodoApp> create(SlintComponentFactory factory)'));
+      expect(out, containsCode('static TodoApp create(SlintComponentFactory factory)'));
       expect(out, isNot(containsCode('defaultFactory')));
       expect(out, isNot(containsCode('_useCompiled')));
       expect(out, isNot(containsCode('slint_interpreter')));
@@ -83,8 +83,9 @@ void main() {
     test('with only the interpreter, it is the default', () {
       final out = _wrapper(_schema(), interpreter: true);
       expect(out, containsCode("import 'package:slint_interpreter/slint_interpreter.dart';"));
-      expect(out, containsCode('defaultFactory = SlintInterpreterFactory()'));
-      expect(out, containsCode('static Future<TodoApp> create([SlintComponentFactory? factory])'));
+      // (the formatter may wrap the argument with a trailing comma)
+      expect(out, containsCode('defaultFactory = SlintInterpreterFactory(_source'));
+      expect(out, containsCode('static TodoApp create([SlintComponentFactory? factory])'));
       expect(out, isNot(containsCode('_useCompiled')));
     });
 
@@ -106,56 +107,115 @@ void main() {
       expect(out, containsCode("bool.fromEnvironment('dart.vm.profile')"));
       expect(
         out,
-        containsCode('defaultFactory = _useCompiled ? aot.todoAppFactory : SlintInterpreterFactory()'),
+        containsCode('defaultFactory = _useCompiled ? aot.todoAppFactory : SlintInterpreterFactory(_source)'),
       );
     });
 
-    test('loading an asset needs a runtime compiler', () {
-      // Interpreter present: an explicit path can be compiled at runtime.
-      final interpreted = _wrapper(_schema(), interpreter: true);
-      expect(interpreted, containsCode("static const assetPath = 'lib/todo.slint'"));
-      expect(interpreted,
-          containsCode("import 'package:flutter/services.dart' show rootBundle;"));
-      expect(interpreted,
-          containsCode('path == null ? _source : await rootBundle.loadString(path)'));
-
-      // AOT only: nothing can be compiled at runtime, so the path is ignored
-      // rather than read and thrown away.
-      final compiled = _wrapper(_schema(), aotLibrary: 'todo.aot.g.dart');
-      expect(compiled, containsCode('static Future<TodoApp> load('));
-      expect(compiled, isNot(containsCode('rootBundle')));
+    test('a wrapper with a default backend can be loaded by path', () {
+      final out = _wrapper(_schema(), interpreter: true);
+      expect(out, containsCode("static const assetPath = 'ui/todo.slint'"));
+      // Synchronous: no Future, no await — the instance is usable on return.
+      expect(out, containsCode('static TodoApp load(String path) {'));
+      expect(out, isNot(containsCode('Future<')));
+      expect(out, isNot(containsCode('await ')));
     });
 
-    test('load never touches the bundle without an explicit path', () {
-      // The default has to stay source-only: a wrapper that read `assetPath`
-      // on its own would force every app to bundle its `.slint`, which then
-      // ships the UI source in release for nothing.
-      for (final wrapper in [
-        _wrapper(_schema(), interpreter: true),
-        _wrapper(_schema(), interpreter: true, aotLibrary: 'todo.aot.g.dart'),
-        _wrapper(_schema(), aotLibrary: 'todo.aot.g.dart'),
-      ]) {
-        expect(wrapper, isNot(containsCode('loadString(path ?? assetPath)')));
-        expect(wrapper, isNot(containsCode('loadString(assetPath)')));
-      }
-    });
-
-    test('with both backends, load follows the build mode like create', () {
+    test('load goes through the mode-split defaultFactory', () {
+      // `_useCompiled` is a const, so a release build initializes
+      // defaultFactory to the AOT factory and the interpreter branch is dead
+      // code. load must reuse it rather than building a factory per call —
+      // a fresh SlintInterpreterFactory(_source) would own a fresh engine
+      // each time.
       final out = _wrapper(
         _schema(),
         aotLibrary: 'todo.aot.g.dart',
         interpreter: true,
       );
-      expect(
-        out,
-        containsCode(
-            'path == null || _useCompiled ? _source : await rootBundle.loadString(path)'),
-      );
+      expect(out, containsCode('defaultFactory = _useCompiled ? aot.todoAppFactory : SlintInterpreterFactory(_source)'));
+      expect(out,
+          containsCode('return TodoApp(defaultFactory.instantiate(componentName));'));
+      expect(out, isNot(containsCode('SlintInterpreterFactory(_source).instantiate')));
     });
 
-    test('without a backend there is nothing for load to default to', () {
+    test('the source is mentioned only where the interpreter is built', () {
+      // What keeps the `.slint` text out of a release binary: `_source` must
+      // reach the interpreter through its factory's constructor inside the
+      // dead `_useCompiled` branch, never through `instantiate`, which both
+      // modes call. The declaration, the public `slintSource` alias, and the
+      // one factory construction are the whole budget.
+      final out = _wrapper(
+        _schema(),
+        aotLibrary: 'todo.aot.g.dart',
+        interpreter: true,
+      );
+      expect(out, isNot(containsCode('instantiate(_source')));
+      expect(RegExp(r'\b_source\b').allMatches(out).length, 3);
+    });
+
+    test('load refuses a path this wrapper was not generated from', () {
+      // Silently ignoring it would make `load('other.slint')` quietly render
+      // the wrong UI.
+      final out = _wrapper(_schema(), interpreter: true);
+      expect(out, containsCode('if (path != assetPath)'));
+      expect(out, containsCode('ArgumentError.value('));
+    });
+
+    test('load takes exactly one .slint file', () {
+      // One String, checked for the extension before anything else, so a
+      // `.txt` or an empty path fails with its own message rather than the
+      // generic "generated from" one.
+      final out = _wrapper(_schema(), interpreter: true);
+      expect(out, containsCode('static TodoApp load(String path) {'));
+      expect(out, isNot(containsCode('load(List<String>')));
+      expect(out, containsCode("if (!path.endsWith('.slint'))"));
+      expect(out, containsCode("ArgumentError.value(path, 'path', 'not a .slint file')"));
+    });
+
+    test('register makes SlintComponent.load answer the wrapper\'s path', () {
+      // Per component, never per file: a file-level registration would
+      // reference every component's AOT factory and defeat tree-shaking.
+      final out = _wrapper(
+        _schema(),
+        aotLibrary: 'todo.aot.g.dart',
+        interpreter: true,
+      );
+      expect(out, containsCode('static void register() =>'));
+      expect(out, containsCode('SlintComponent.register<TodoApp>(assetPath, componentName, create)'));
+      expect(out, isNot(containsCode('registerTodo')));
+    });
+
+    test('without a backend there is nothing to register', () {
+      expect(_wrapper(_schema()), isNot(containsCode('register(')));
+    });
+
+    test('generated code never reads the asset bundle', () {
+      // A wrapper that read its own `assetPath` would force every app to
+      // bundle its `.slint`, which then ships the UI source in release for
+      // nothing. Reading an asset is SlintComponent.load's job, for a file
+      // no wrapper was generated from.
+      for (final wrapper in [
+        _wrapper(_schema(), interpreter: true),
+        _wrapper(_schema(), interpreter: true, aotLibrary: 'todo.aot.g.dart'),
+        _wrapper(_schema(), aotLibrary: 'todo.aot.g.dart'),
+      ]) {
+        expect(wrapper, isNot(containsCode('rootBundle')));
+        expect(wrapper, isNot(containsCode('loadString')));
+        expect(wrapper, isNot(containsCode('flutter/services.dart')));
+      }
+    });
+
+    test('the wrapper is itself a component, so it goes where one goes', () {
+      final out = _wrapper(_schema(), interpreter: true);
+      expect(out, containsCode('class TodoApp implements SlintSoftwareComponent'));
+      expect(out, containsCode('Object? getProperty(String name) => component.getProperty(name)'));
+      expect(out, containsCode('void setProperty(String name, Object? value) => component.setProperty(name, value)'));
+      expect(out, containsCode('void setCallbackHandler(String name, SlintCallbackHandler handler) => component.setCallbackHandler(name, handler)'));
+      expect(out, containsCode('Object? invokeCallback(String name, List<Object?> arguments) => component.invokeCallback(name, arguments)'));
+    });
+
+    test('without a backend there is nothing for load to run on', () {
       final out = _wrapper(_schema());
-      expect(out, isNot(containsCode('static Future<TodoApp> load(')));
+      expect(out, isNot(containsCode('static TodoApp load(')));
       expect(out, isNot(containsCode('assetPath')));
     });
 
@@ -370,7 +430,8 @@ void main() {
       sourceName: 'app.slint',
       slintSource: 'x',
     );
-    expect(out, containsCode('class TodoApp {'));
-    expect(out, containsCode('class SettingsPane {'));
+    expect(out, containsCode('class TodoApp implements SlintSoftwareComponent {'));
+    expect(out,
+        containsCode('class SettingsPane implements SlintSoftwareComponent {'));
   });
 }

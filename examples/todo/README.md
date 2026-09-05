@@ -26,7 +26,10 @@ absent from the shipped `slint_dart_aot` dylib; without it (or with
 cd examples/todo && dart run build_runner build
 ```
 
-Two files per `.slint`, both regenerated after editing `lib/todo.slint`:
+The `.slint` lives in `ui/`, outside `lib/`: it is not Dart and must never
+ship, and build_runner only looks there because `build.yaml` lists `ui/**`
+as a source. Two files land in `lib/`, both regenerated after editing
+`ui/todo.slint`:
 
 - `lib/todo.g.dart` — `slint_generator`: the typed `TodoApp` (properties,
   callbacks, render target), the `TodoItem` value class generated from the
@@ -37,27 +40,37 @@ Two files per `.slint`, both regenerated after editing `lib/todo.slint`:
 
 ## Backends
 
-`main.dart` names no backend at all:
+`main.dart` names the UI by its `.slint` path and no backend at all:
 
 ```dart
-final app = await TodoApp.load();
+TodoApp.register();                                  // once, in main()
+final TodoApp app = SlintComponent.load('ui/todo.slint');   // synchronous
 ```
+
+Registration is per component on purpose: `UnusedGadget` is never
+registered, so nothing references its AOT factory and it is tree-shaken out
+of the release dylib. `TodoApp.load('ui/todo.slint')` is the same thing
+without the registry.
 
 The generated `TodoApp.defaultFactory` picks one by build mode, matching the
 dylib that actually ships (the hooks read `linkingEnabled`, true exactly for
-the non-debug modes). Pass a factory explicitly to override it — that is what
-the tests do.
+the non-debug modes). Pass a factory to `create()` to override it — that is
+what the tests do. There is nothing to await: compiling with the interpreter
+and creating an AOT instance are each one FFI call, so the component is
+renderable on return and `initState` needs no loading state.
 
-`load()` is `create()` without naming a factory. Neither bundles
-`lib/todo.slint`: `todo.g.dart` embeds the source and the release build
-compiles it into the AOT dylib, so the UI source never ships. That is why
-`pubspec.yaml` declares no `flutter: assets:` entry — Flutter declares assets
-per package, not per build mode, so anything listed there for debug
-convenience would ride along into release.
+Neither mode bundles or reads `ui/todo.slint`. Debug compiles the copy
+`todo.g.dart` embeds; release compiles it into the AOT dylib, and the Dart
+snapshot carries no copy of the text — the embedded string is referenced
+only inside the interpreter branch that the const build-mode split makes
+dead code. That is also why `pubspec.yaml` declares no `flutter: assets:`
+entry: Flutter declares assets per package, not per build mode, so anything
+listed there for debug convenience would ride along into release.
 
-`load(path: 'assets/ui/todo.slint')` is the other direction: read a `.slint`
-the app ships on purpose and compile it at runtime. Release ignores `path` —
-an AOT binary has no compiler to hand the source to.
+`SlintComponent.loadAsset('assets/ui/todo.slint')` is the other direction: read a
+`.slint` the app ships on purpose and compile it at runtime. Interpreter
+only — an AOT binary has no compiler to hand the source to — and async,
+because reading the bundle is.
 
 ### Interpreter — debug builds
 

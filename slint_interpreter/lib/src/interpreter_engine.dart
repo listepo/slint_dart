@@ -31,8 +31,8 @@ class InterpreterSlintEngine implements SlintEngine {
   late final _handle = slint_interpreter_engine_new();
 
   @override
-  Future<List<InterpreterSlintComponentDefinition>> compile(String source,
-      {String? path}) async {
+  List<InterpreterSlintComponentDefinition> compile(String source,
+      {String? path}) {
     final sourceCStr = source.toNativeUtf8();
     final pathCStr = path?.toNativeUtf8() ?? nullptr;
 

@@ -53,8 +53,8 @@ external bool _todoAppSetCallback(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.
 /// AOT backend for `TodoApp`: instantiates the slint-build compiled component
 /// from the app's `slint-dart-aot` code asset, no interpreter involved.
 ///
-/// Pass it to the generated wrapper: `await TodoApp.create(todoAppFactory)`
-/// — or just `await TodoApp.create()`, which defaults to it in release builds.
+/// Pass it to the generated wrapper: `TodoApp.create(todoAppFactory)`
+/// — or just `TodoApp.create()`, which defaults to it in release builds.
 final todoAppFactory = SlintCompilerFactory(
   componentName: 'TodoApp',
   ops: SlintComponentOps(
@@ -112,8 +112,8 @@ external bool _unusedGadgetSetCallback(ffi.Pointer<ffi.Void> handle, ffi.Pointer
 /// AOT backend for `UnusedGadget`: instantiates the slint-build compiled component
 /// from the app's `slint-dart-aot` code asset, no interpreter involved.
 ///
-/// Pass it to the generated wrapper: `await UnusedGadget.create(unusedGadgetFactory)`
-/// — or just `await UnusedGadget.create()`, which defaults to it in release builds.
+/// Pass it to the generated wrapper: `UnusedGadget.create(unusedGadgetFactory)`
+/// — or just `UnusedGadget.create()`, which defaults to it in release builds.
 final unusedGadgetFactory = SlintCompilerFactory(
   componentName: 'UnusedGadget',
   ops: SlintComponentOps(

@@ -3,12 +3,12 @@ import 'package:slint/slint_core.dart';
 
 import 'interpreter_engine.dart';
 
-/// Routes [SlintComponent.load] through the interpreter, so a `.slint` asset
-/// can be compiled and instantiated at runtime.
+/// Routes [SlintComponent.loadAsset] through the interpreter, so a `.slint`
+/// asset can be compiled and instantiated at runtime.
 ///
 /// Called for you the first time you construct a [SlintInterpreterFactory] —
 /// which the generated wrappers do — so an app usually never calls it. Call it
-/// explicitly at startup when you use [SlintComponent.load] on its own.
+/// explicitly at startup when you use [SlintComponent.loadAsset] on its own.
 ///
 /// Registering twice is harmless: the first backend registered wins, so an
 /// application that installed its own loader keeps it.
@@ -16,14 +16,14 @@ void useSlintInterpreter() {
   SlintComponent.loader ??= _loadAsset;
 }
 
-/// Engine shared by every [SlintComponent.load]; created on first use so
+/// Engine shared by every [SlintComponent.loadAsset]; created on first use so
 /// merely importing this package costs nothing.
 InterpreterSlintEngine? _engine;
 
 Future<SlintSoftwareComponent> _loadAsset(String path, String? component) async {
   final source = await rootBundle.loadString(path);
   final engine = _engine ??= InterpreterSlintEngine();
-  final defs = await engine.compile(source, path: path);
+  final defs = engine.compile(source, path: path);
   try {
     if (component != null) {
       for (final def in defs) {

@@ -16,8 +16,8 @@ foo.slint ──▶┼─ build_runner ────▶ foo.aot.g.dart (@Native b
 
 - The typed API and the schema tool live in `slint_generator`; this package
   adds the AOT backend.
-- Its build_runner builder turns each `lib/**.slint` into a sibling
-  `*.aot.g.dart` holding only what has to be per-file: the `@Native` externs
+- Its build_runner builder turns each `ui/**.slint` into `lib/**.aot.g.dart`
+  holding only what has to be per-file: the `@Native` externs
   for the glue crate's per-component C symbols (bound to the code asset
   `package:<app>/<path>.aot.g.dart`) and one `SlintCompilerFactory` per
   component (`todoAppFactory`) wiring them into a `SlintComponentOps` bundle.
@@ -25,7 +25,7 @@ foo.slint ──▶┼─ build_runner ────▶ foo.aot.g.dart (@Native b
   target, JSON marshalling, callback trampolines — is hand-written in
   `package:slint_compiler/runtime.dart`, which the generated file imports.
 - The app's `hook/build.dart` calls `buildSlintAot`, which generates a Rust
-  crate in hook scratch space (slint-build codegen of every `lib/**.slint`
+  crate in hook scratch space (slint-build codegen of every `ui/**.slint`
   plus generated JSON⇄typed C ABI glue), builds it as a staticlib through
   slint_build's cargo worker, and routes it — plus a manifest of components,
   symbols, and rustc's `native-static-libs` linker line — to the app's link
@@ -69,18 +69,19 @@ import 'package:slint_compiler/aot_link.dart';
 void main(List<String> args) => link(args, linkSlintAot);
 ```
 
-Put `.slint` files under `lib/`, then:
+Put `.slint` files under `ui/` and list that directory as a build_runner
+source (see `slint_generator`'s README for the `build.yaml`), then:
 
 ```bash
-dart run build_runner build
+dart run build_runner build   # ui/todo.slint → lib/todo.g.dart + lib/todo.aot.g.dart
 ```
 
 `flutter run`/`build`/`test` compiles the native side automatically via the
-hook. One-off CLI (writes both libraries; second argument optional, must be
-under `lib/`):
+hook. One-off CLI (writes both libraries into `lib/`; the input must be
+under `ui/`, the tree the hook compiles):
 
 ```bash
-dart run slint_compiler lib/todo.slint lib/todo.g.dart
+dart run slint_compiler ui/todo.slint
 ```
 
 ```dart
@@ -88,7 +89,7 @@ import 'todo.g.dart';                    // typed API (slint_generator)
 
 // The wrapper defaults to this backend in release/profile builds, so the app
 // need not import `todo.aot.g.dart` itself.
-final app = await TodoApp.create();
+final app = TodoApp.load('ui/todo.slint');
 app.todoModel = [
   const TodoItem(title: 'Learn Slint', checked: false),
 ];
@@ -162,9 +163,11 @@ Two things this package deliberately does *not* decide for you:
 
 Debug builds are unaffected: the dylib is not built or bundled at all, since
 `hook/build.dart` returns early when `linkingEnabled` is false and the app
-falls back to `slint_interpreter`. The interpreter's Dart code is tree-shaken
-out of release snapshots by the const `_useCompiled` branch in the generated
-wrapper — verified absent from `App.framework` in a release build.
+falls back to `slint_interpreter`. The interpreter's Dart code — and the
+`.slint` source the wrapper embeds for it, which only that branch mentions —
+is tree-shaken out of release snapshots by the const `_useCompiled` branch in
+the generated wrapper: both verified absent from `App.framework` in a
+release build.
 
 ## Limits
 

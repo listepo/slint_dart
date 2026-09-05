@@ -3,14 +3,20 @@ import 'package:slint/slint.dart';
 
 import 'todo.g.dart';
 
-// The app never names a backend: `TodoApp.load()` uses the generated
-// `defaultFactory`, which follows the build mode exactly like the hooks that
-// decide which dylib ships — interpreter in debug, AOT in release/profile.
-// It compiles the source todo.g.dart embeds, so lib/todo.slint is not a
-// Flutter asset and the UI source stays out of the shipped bundle.
+// The app names its UI by the `.slint` path and never a backend:
+// `SlintComponent.load('ui/todo.slint')` returns the `TodoApp` registered
+// below, built through the generated `defaultFactory`, which follows the
+// build mode exactly like the hooks that decide which dylib ships —
+// interpreter in debug, AOT in release/profile. Debug compiles the source
+// todo.g.dart embeds; release has it compiled into the AOT dylib and carries
+// no copy of the text. ui/todo.slint is not a Flutter asset, so the UI source
+// stays out of the shipped bundle either way.
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Per component, on purpose: UnusedGadget is never registered, so it is
+  // tree-shaken out of the release build.
+  TodoApp.register();
   runApp(const MyApp());
 }
 
@@ -47,32 +53,24 @@ class _TodoPageState extends State<TodoPage> {
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
+    // Synchronous in both modes: the interpreter compiles the embedded source
+    // in one FFI call, and AOT only creates the instance — so the UI is
+    // ready before the first build, with no loading state to render.
     try {
-      final app = await TodoApp.load();
-      if (!mounted) {
-        app.dispose();
-        return;
-      }
-      _app = app;
-      app.onAddTodo(_onAddTodo);
-      app.onToggleTodo(_onToggleTodo);
-      app.onRemoveDone(_onRemoveDone);
+      _app = SlintComponent.load('ui/todo.slint')
+        ..onAddTodo(_onAddTodo)
+        ..onToggleTodo(_onToggleTodo)
+        ..onRemoveDone(_onRemoveDone);
       _sync();
     } catch (e) {
-      if (mounted) {
-        setState(() => _loadError = e);
-      }
+      _loadError = e;
     }
   }
 
   void _sync() {
     _app!.todoModel = _todos;
     _openCount = _todos.where((t) => !t.checked).length;
-    if (mounted) setState(() {});
+    setState(() {});
   }
 
   void _onAddTodo(String title) {
@@ -111,11 +109,9 @@ class _TodoPageState extends State<TodoPage> {
           ' — ${TodoApp.defaultFactory.runtimeType}',
         ),
       ),
-      body: _loadError != null
+      body: target == null
           ? Center(child: Text('$_loadError'))
-          : target == null
-              ? const Center(child: CircularProgressIndicator())
-              : SlintView(target: target),
+          : SlintView(target: target),
     );
   }
 }

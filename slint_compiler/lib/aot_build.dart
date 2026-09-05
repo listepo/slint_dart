@@ -9,7 +9,7 @@ import 'package:slint_generator/slint_generator.dart' show introspectSlint;
 import 'src/generator.dart';
 import 'src/rust_glue.dart';
 
-/// App build hook: AOT-compiles every `lib/**.slint` of the package into one
+/// App build hook: AOT-compiles every `ui/**.slint` of the package into one
 /// staticlib — slint-build codegen plus generated C ABI glue, no
 /// slint-interpreter — and routes it to the app's link hook ([ToLinkHook]),
 /// which links the final dylib keeping only the components the app uses (see
@@ -33,10 +33,12 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
   // linkingEnabled == true exactly for the non-debug (AOT) modes.
   if (!input.config.linkingEnabled) return;
 
-  final libDir = Directory.fromUri(input.packageRoot.resolve('lib/'));
-  final slintFiles = !libDir.existsSync()
+  // `.slint` files live under `ui/`, not `lib/`: they are not Dart, and the
+  // release bundle must not ship them — see `slint_generator`'s builder.
+  final uiDir = Directory.fromUri(input.packageRoot.resolve('ui/'));
+  final slintFiles = !uiDir.existsSync()
       ? <File>[]
-      : (libDir
+      : (uiDir
           .listSync(recursive: true, followLinks: false)
           .whereType<File>()
           .where((f) => f.path.endsWith('.slint'))
@@ -52,9 +54,9 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
 
   final files = <SlintAotFile>[];
   final assetNames = <String>[];
-  final libPath = libDir.uri.toFilePath();
+  final uiPath = uiDir.uri.toFilePath();
   for (final f in slintFiles) {
-    final relative = f.path.substring(libPath.length);
+    final relative = f.path.substring(uiPath.length);
     final schema = await introspectSlint(
       f.path,
       introspectManifest: generatorRoot.resolve('rust/Cargo.toml'),
@@ -91,7 +93,7 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
     // the final dylib.
     extraEnv: const {'RUSTFLAGS': '--print=native-static-libs'},
     sourceDirs: [
-      input.packageRoot.resolve('lib/'),
+      input.packageRoot.resolve('ui/'),
       // Regenerate when the glue generator or the introspect tool change.
       compilerRoot.resolve('lib/'),
       generatorRoot.resolve('rust/'),
