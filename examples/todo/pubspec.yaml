@@ -16,6 +16,7 @@ dependencies:
   slint: ^0.1.0
   slint_generator: ^0.1.0
   slint_interpreter: ^0.1.0
+  todo_shared: ^0.1.0
   hooks: ^2.2.0
   slint_compiler: ^0.1.0
 

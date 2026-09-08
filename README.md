@@ -4,17 +4,23 @@
 
 ## Layout
 
+A melos monorepo: a pub workspace (root `pubspec.yaml`, which also holds the
+melos config) plus a Cargo workspace (root `Cargo.toml`). Packages live under
+`packages/`, apps under `examples/`.
+
 | Folder | Dart package | Rust crate | Role |
 |---|---|---|---|
-| `slint/` | `slint` | `slint-dart-core` | Backend-agnostic core: Dart API (engine, component, render targets, input events), the `SlintView` widget, and a shared Rust events module mapping the FFI event encoding onto `slint::platform::WindowEvent`. No interpreter, no codegen. |
-| `slint_interpreter/` | `slint_interpreter` | `slint-interpreter-ffi` (`rust/`), `slint-dart-interpreter` (`interpreter/`) | Runtime `.slint` path: the nested `interpreter/` crate wraps `slint-interpreter` (compile, instantiate, JSON value bridge, callbacks) behind a renderer-agnostic API; `rust/` adds the software renderer (`slint::platform::software_renderer`) and the C ABI → RGBA frames. |
-| `slint_generator/` | `slint_generator` | `slint-introspect` | Shared codegen: `slint-introspect` extracts the typed schema from a `.slint` file, and a build_runner builder emits `foo.g.dart` next to each `foo.slint` — one typed class per component (properties, callbacks, render target), one value class per named struct, plus the embedded `.slint` source. Owns the `SlintComponentFactory` base class (`runtime.dart`) that makes the generated API backend-agnostic. |
-| `slint_compiler/` | `slint_compiler` | — | AOT backend, no interpreter: a build_runner builder emits `foo.aot.g.dart` — only the `@Native` externs and a `SlintCompilerFactory` per component, with the component/render-target plumbing hand-written in `runtime.dart`. The app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into a staticlib; the app's link hook (`linkSlintAot`) links it into the one code asset those externs bind to, tree-shaking components no reachable Dart code uses (`@RecordUse` + `package:record_use` + `CLinker`). |
-| `slint_skia/` | `slint_skia` | `slint-skia-ffi` | Interpreter + `i-slint-renderer-skia` (GPU) → Flutter external texture. GPU surface plumbing stubbed. |
-| `slint_testing/` | `slint_testing` | `slint-testing-ffi` | Testing backend (`i-slint-backend-testing`): instantiates a component with no window, renderer, or event loop and exposes its accessibility tree, so tests find elements by label/id/type/role, click them, and assert on properties and a callback log. Runs under plain `dart test`. |
-| `slint_patrol/` | `slint_patrol` | — | Patrol (E2E) support: `$.slint(...)` finders over the **live** component's accessibility tree, tapping and typing through real Flutter gestures aimed at each element's on-screen rect. Extends `PatrolTester`, so one test can drive Flutter widgets, Slint elements, and native UI. |
-| `slint_build/` | `slint_build` | — | Shared hook plumbing: cargo builds through a `bazel_worker` persistent worker, target-triple mapping, cross-compile env, cache invalidation. Used by every `hook/build.dart`. |
+| `packages/slint/` | `slint` | `slint-dart-core` | Backend-agnostic core: Dart API (engine, component, render targets, input events), the `SlintView` widget, and a shared Rust events module mapping the FFI event encoding onto `slint::platform::WindowEvent`. No interpreter, no codegen. |
+| `packages/slint_interpreter/` | `slint_interpreter` | `slint-interpreter-ffi` (`rust/`), `slint-dart-interpreter` (`interpreter/`) | Runtime `.slint` path: the nested `interpreter/` crate wraps `slint-interpreter` (compile, instantiate, JSON value bridge, callbacks) behind a renderer-agnostic API; `rust/` adds the software renderer (`slint::platform::software_renderer`) and the C ABI → RGBA frames. |
+| `packages/slint_generator/` | `slint_generator` | `slint-introspect` | Shared codegen: `slint-introspect` extracts the typed schema from a `.slint` file, and a build_runner builder emits `foo.g.dart` next to each `foo.slint` — one typed class per component (properties, callbacks, render target), one value class per named struct, plus the embedded `.slint` source. Owns the `SlintComponentFactory` base class (`runtime.dart`) that makes the generated API backend-agnostic. |
+| `packages/slint_compiler/` | `slint_compiler` | — | AOT backend, no interpreter: a build_runner builder emits `foo.aot.g.dart` — only the `@Native` externs and a `SlintCompilerFactory` per component, with the component/render-target plumbing hand-written in `runtime.dart`. The app's build hook (`buildSlintAot`) AOT-compiles the `.slint` files with `slint-build` plus generated C ABI glue into a staticlib; the app's link hook (`linkSlintAot`) links it into the one code asset those externs bind to, tree-shaking components no reachable Dart code uses (`@RecordUse` + `package:record_use` + `CLinker`). |
+| `packages/slint_skia/` | `slint_skia` | `slint-skia-ffi` | Interpreter + `i-slint-renderer-skia` (GPU) → Flutter external texture. GPU surface plumbing stubbed. |
+| `packages/slint_testing/` | `slint_testing` | `slint-testing-ffi` | Testing backend (`i-slint-backend-testing`): instantiates a component with no window, renderer, or event loop and exposes its accessibility tree, so tests find elements by label/id/type/role, click them, and assert on properties and a callback log. Runs under plain `dart test`. |
+| `packages/slint_patrol/` | `slint_patrol` | — | Patrol (E2E) support: `$.slint(...)` finders over the **live** component's accessibility tree, tapping and typing through real Flutter gestures aimed at each element's on-screen rect. Extends `PatrolTester`, so one test can drive Flutter widgets, Slint elements, and native UI. |
+| `packages/slint_build/` | `slint_build` | — | Shared hook plumbing: cargo builds through a `bazel_worker` persistent worker, target-triple mapping, cross-compile env, cache invalidation. Used by every `hook/build.dart`. |
 | `examples/todo/` | `todo_example` | — | Todo demo: one typed API (`TodoApp`) over both backends, the app's `hook/build.dart` + `hook/link.dart`, and the `UnusedGadget` tree-shaking canary. |
+| `examples/todo_shared/` | `todo_shared` | — | Shared todo-list state (`TodoStore`, seed, title helper) for the example apps — framework-free, tested under `dart test`. |
+| `examples/todo_skia/` | `todo_skia_example` | — | The same `ui/todo.slint` on the `slint_skia` backend: compiled by `SkiaSlintEngine` at runtime, model synced from Dart, a `Texture` widget waiting on the GPU plumbing. Builds all of Skia, so CI-only. |
 
 One typed API, two independent backends behind it:
 
@@ -54,7 +60,7 @@ The FFI packages (`slint_interpreter`, `slint_skia`, `slint_testing`) ship a
 `flutter run` / `flutter build` / `flutter test` — or `dart test`, for
 `slint_testing` — the hook builds the
 package's crate with cargo — driven through a `bazel_worker` persistent
-worker (`slint_build/bin/cargo_worker.dart`) — and bundles the produced
+worker (`packages/slint_build/bin/cargo_worker.dart`) — and bundles the produced
 cdylib as a code asset. Shared plumbing lives in the `slint_build` package
 (target-triple mapping, Android NDK/iOS/macOS cross-compile env, cache
 invalidation over the Rust sources).
@@ -83,17 +89,30 @@ mappings but are untested.
 Per-platform build commands and a measured size comparison live in
 [`examples/todo/README.md`](examples/todo/README.md).
 
-## Toolchain
+## Toolchain and workflow
 
 - Flutter via mise: `mise exec -- flutter ...`
 - Rust via rustup (`cargo`), plus `cargo install cbindgen`
-- Rust formatting and linting (rustfmt defaults; lint levels in the root
-  `Cargo.toml` `[workspace.lints.*]` tables):
+- `just` (via mise) for the short form: `just` lists recipes, `just check`
+  runs what CI runs; `examples/todo/justfile` has the release builds and the
+  tree-shaking check. Melos does the package iteration underneath, as a root
+  dev dependency — nothing to activate globally:
 
 ```bash
-cargo fmt --all
-cargo clippy --workspace --exclude slint-skia-ffi --all-targets
+mise exec -- dart pub get                       # the whole workspace
+mise exec -- dart run melos run analyze         # dart analyze, per package
+mise exec -- dart run melos run test            # Dart packages, then Flutter packages and examples/todo
+mise exec -- dart run melos run codegen         # ui/*.slint → lib/*.g.dart in the examples
+mise exec -- dart run melos run rust:clippy     # every crate except slint-skia-ffi
+mise exec -- dart run melos run check           # all of the above plus formatting — what CI runs
 ```
+
+`melos run` alone lists the scripts. Rust formatting and linting use rustfmt
+defaults and the lint levels in the root `Cargo.toml` `[workspace.lints.*]`
+tables (`cargo fmt --all`, `cargo clippy --workspace --exclude slint-skia-ffi
+--all-targets`). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full
+workflow and [`AGENTS.md`](AGENTS.md) — plus each package's own `AGENTS.md`
+— for the invariants a change must respect.
 
 ## Testing UIs
 

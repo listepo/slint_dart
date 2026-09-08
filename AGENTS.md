@@ -1,32 +1,65 @@
 # Agent notes for slint_dart
 
-Slint ↔ Flutter integration: a pub workspace (root `pubspec.yaml`) plus a
-Cargo workspace (root `Cargo.toml`) in one repo. Read the root `README.md`
-for the package/crate layout and architecture; each package README covers its
-own details. This file holds what an agent needs beyond the docs: commands,
-invariants, and the traps.
+Slint ↔ Flutter integration: a melos monorepo on top of a pub workspace
+(root `pubspec.yaml`) plus a Cargo workspace (root `Cargo.toml`). Packages
+live under `packages/`, apps under `examples/`. Read the root `README.md`
+for the package/crate layout and architecture, `CONTRIBUTING.md` for the
+workflow, and each package's `README.md` for its details. **Every package
+has its own `AGENTS.md`** with the invariants and traps local to it — read
+`packages/<pkg>/AGENTS.md` before editing that package. This file holds what
+is cross-cutting: commands, the invariants that span packages, and the
+conventions.
 
 ## Toolchain and commands
 
-Flutter and Dart run through mise; Rust is a plain rustup install.
+Flutter and Dart run through mise; Rust is a plain rustup install. The
+root `justfile` is the short form (`just` lists recipes: `analyze`, `test`,
+`check`, `codegen`, `clippy`, `unused`, `bindings <pkg>`, ...);
+`examples/todo/justfile` adds `build-macos`/`build-ios`/`build-android` and
+`verify-treeshake`, `examples/todo_skia/justfile` the local `codegen` +
+`analyze`. Underneath, melos is a root dev dependency, so nothing is
+globally activated — run it as `mise exec -- dart run melos run <script>`:
+
+| Script | What it does |
+|---|---|
+| `analyze` | `dart analyze .` in every package and example except `slint_skia` (its generated bindings carry ~80 known warnings). Workspace-wide `dart analyze` at the root is noisy for the same reason; per package is the rule. |
+| `format`, `format:fix` | `dart format --output=none --set-exit-if-changed .` (check only) and `dart format .` (rewrite). The tree predates Dart 3.13's formatter style, so `format` fails until `format:fix` is adopted — which is why it is not in `check`. |
+| `test` | `test:dart` then `test:flutter`. |
+| `test:dart` | `dart test` in the pure-Dart packages with a `test/` dir (`slint_compiler`, `slint_generator`, `slint_testing` — the last builds its crate through its hook). |
+| `test:flutter` | `flutter test` in the Flutter packages with tests (`slint`, `slint_patrol`, `examples/todo`). `examples/todo_skia` is excluded: its hook builds all of Skia. |
+| `codegen` | `dart run build_runner build --delete-conflicting-outputs` in every package that depends on `build_runner` (the examples): regenerates `lib/*.g.dart` from `ui/*.slint`. |
+| `deps:unused`, `dart:unused` | `cargo machete` (unused Rust deps; `slint-skia-ffi`'s Skia crates are ignored via `[package.metadata.cargo-machete]`) and `dart_code_linter check-unused-code` per package (advisory: builder/hook entry points show up as unused). Both need the tool installed — see `CONTRIBUTING.md`. |
+| `rust:fmt`, `rust:clippy` | `cargo fmt --all`; `cargo clippy --workspace --exclude slint-skia-ffi --all-targets`. |
+| `check` | analyze, `cargo fmt --check`, clippy, tests — what CI should run. |
+
+The scripts are `dart run melos exec` invocations with filter flags rather
+than `exec:`/`packageFilters:` — the former needs no global `melos`, the
+latter prompts for a package unless `--no-select` is passed. Melos is pinned
+to 7.x: 8.x wants `cli_util ^0.5` while `ffigen ^21` (a dev dependency of
+the FFI packages, resolved workspace-wide) pins `^0.4`.
+
+Direct commands, when you want one thing:
 
 ```bash
-mise exec -- flutter test                 # in examples/todo/: both backends' tests
-mise exec -- flutter build macos --release  # e2e: codegen + cargo + link hook
-mise exec -- flutter build ios --release --no-codesign            # iOS (device, unsigned)
-mise exec -- flutter build apk --release --target-platform android-arm64  # Android
-mise exec -- dart test                    # in a package dir: its unit tests
-mise exec -- flutter test                 # in slint_patrol/: live-component E2E tests
-mise exec -- dart analyze .               # per package; workspace-wide is noisy (slint_skia stubs)
+cd examples/todo && mise exec -- flutter test           # both backends' tests
+cd examples/todo && mise exec -- flutter build macos --release   # e2e: codegen + cargo + link hook
+cd examples/todo && mise exec -- flutter build ios --release --no-codesign
+cd examples/todo && mise exec -- flutter build apk --release --target-platform android-arm64
+cd packages/<pkg> && mise exec -- dart test              # a package's unit tests
+cd packages/slint_patrol && mise exec -- flutter test    # live-component E2E tests
 cd examples/todo && mise exec -- dart run build_runner build   # regenerate *.g.dart after editing a .slint
-cargo fmt --all                                          # Rust formatting (rustfmt defaults, no config file)
-cargo clippy --workspace --exclude slint-skia-ffi --all-targets   # Rust linting
+cd examples/todo_skia && mise exec -- dart run build_runner build && mise exec -- dart analyze .  # all that runs locally there
+cargo fmt --all
+cargo clippy --workspace --exclude slint-skia-ffi --all-targets
 ```
 
 Keep `cargo fmt --all --check` and that clippy invocation clean. Lint levels
 live in the root `Cargo.toml` `[workspace.lints.*]` tables; members opt in
 with `[lints] workspace = true`. `slint-skia-ffi` is always excluded from
-clippy/test/build — compiling it builds all of Skia (CI-only). FFI crates
+clippy/test/build — compiling it builds all of Skia (CI-only). That also
+means `flutter run/build/test` in `examples/todo_skia` is CI-only: Flutter
+runs `slint_skia`'s build hook first. Never `flutter test` there locally;
+`build_runner` and `dart analyze` are the local checks. FFI crates
 allow `clippy::not_unsafe_ptr_arg_deref` at crate level: C ABI entry points
 are never called from Rust, and each dereference is an explicit unsafe
 block.
@@ -34,7 +67,7 @@ block.
 Regenerate FFI bindings only after changing a Rust C ABI:
 
 ```bash
-cd <plugin>/rust && cbindgen --output include/$(basename $PWD).h && cd .. && dart run ffigen --config ffigen.yaml
+cd packages/<pkg>/rust && cbindgen --output include/$(basename $PWD).h && cd .. && dart run ffigen --config ffigen.yaml
 ```
 
 Generated files (`*.g.dart`, `*.aot.g.dart`, `bindings.g.dart`) are
@@ -44,6 +77,18 @@ Cargo builds happen inside the native-assets hooks during any
 `flutter run/build/test` — no manual `cargo build`. First builds and
 release builds (fat LTO) take minutes; run them in the background.
 
+## Repo shape
+
+- `packages/` — the eight Dart packages, each with its Rust crate(s) inside
+  (`rust/`, and `interpreter/` for `slint_interpreter`). Hooks find sibling
+  packages through the package config (`packageRootFromConfig`) and sibling
+  crates by relative path (`../slint/rust/`), so the packages must stay
+  siblings; the Cargo workspace lists their crates by `packages/...` path.
+- `examples/` — apps. Not packages: they consume the packages through the
+  pub workspace (`resolution: workspace`, no path deps).
+- Root `pubspec.yaml` is the pub workspace *and* the melos config
+  (`melos:` key). Root `Cargo.toml` is the Cargo workspace.
+
 ## Architecture invariants
 
 - **Backend follows build mode.** Debug (incl. `flutter test`) uses the
@@ -51,7 +96,7 @@ release builds (fat LTO) take minutes; run them in the background.
   `linkingEnabled`. AOT tests in `examples/todo/test` self-skip under
   `flutter test`; the release build is their e2e check.
 - **The AOT ABI contract lives in one place**:
-  `slint_compiler/lib/src/generator.dart` (`aotComponentOps`,
+  `packages/slint_compiler/lib/src/generator.dart` (`aotComponentOps`,
   `aotSharedSymbols`, `aotComponentSymbols`, `aotNewExternName`, manifest
   name). The Dart codegen, the Rust glue emitter (`rust_glue.dart`), and
   both hooks all derive from it. A generator test asserts the manifest
@@ -64,10 +109,11 @@ release builds (fat LTO) take minutes; run them in the background.
   `flutter config --enable-record-use`); without it, or when recordings hit
   zero externs, the hook deliberately keeps every component — never "fix"
   those keep-all fallbacks away.
-- **`UnusedGadget` in `examples/todo/lib/todo.slint` is a deliberate canary**, not
-  dead code: it proves tree-shaking by being absent
+- **`UnusedGadget` in `examples/todo/ui/todo.slint` is a deliberate canary**,
+  not dead code: it proves tree-shaking by being absent
   (`slint_aot_unused_gadget_*`) from the shipped dylib when the flag is on.
-  Do not remove it.
+  Do not remove it. (`examples/todo_skia` has no canary on purpose: no AOT
+  there.)
 - **`panic = "unwind"` is load-bearing** in the generated AOT crate and the
   FFI crates: every FFI entry point wraps in `catch_unwind`. Switching to
   `abort` to save size turns Rust panics into process aborts.
@@ -172,6 +218,28 @@ release builds (fat LTO) take minutes; run them in the background.
   `FlutterSoftwarePlatform` in `slint-interpreter-ffi`. Do not merge the two
   crates. Its clicks go through the accessible *default action*: the
   `single_click`/`double_click` helpers are async and need an event loop.
+- **Every FFI entry point runs on the thread that first called in.**
+  `slint-dart-core::thread::check()` pins it; the interpreter crate, the
+  generated AOT glue and their frees check it before touching Slint (which
+  is `!Send`) or the thread-local error slot, and report instead of
+  corrupting. Drive a component only from the isolate that created it.
+- **One Slint version, pinned in one place**: `[workspace.dependencies]` in
+  the root `Cargo.toml` (`=1.17.1`); the crates inherit with `workspace =
+  true`. The generated AOT crate is outside the workspace and pins the same
+  version through `slintVersion` in `slint_compiler`'s `rust_glue.dart` —
+  bump both — and is seeded with the workspace `Cargo.lock` so it resolves
+  the same dependency tree.
+- **`slint_skia` has no `SlintComponentFactory`** and cannot back the typed
+  wrappers: `instantiate` must return a `SlintSoftwareComponent`, and Skia
+  renders to a texture. Its ceilings are explicit `UnimplementedError`s and
+  documented sentinels; `examples/todo_skia` shows them on screen rather
+  than faking a frame.
+- **The example apps share list state through `examples/todo_shared`.**
+  `TodoStore`/`TodoEntry` own the add/toggle/remove-done rules once; each
+  app maps to its generated `TodoItem` only at the Slint boundary. Don't
+  re-duplicate the rules in either `main.dart`, and don't import one
+  example's generated wrapper from the other — the wrappers differ by
+  backend on purpose (AOT `defaultFactory` vs Skia's factory-less shape).
 
 ## Conventions
 
@@ -179,6 +247,12 @@ release builds (fat LTO) take minutes; run them in the background.
   imperative subject, body explains the why. Commit only when asked.
 - READMEs are the documentation of record; update the affected package
   README (and the root one for cross-cutting changes) in the same change.
+  A new invariant goes into the owning package's `AGENTS.md`; one that
+  spans packages goes here.
 - Rust debug/release profile for the crates is a pubspec user-define
   (`hooks.user_defines.<pkg>.profile`) read from the workspace root
   pubspec — independent of Flutter's `--debug`/`--release`.
+- Adding a package: create it under `packages/`, add it to the root
+  `pubspec.yaml` `workspace:` list (and its crate to `Cargo.toml`
+  `members`), give it a `README.md` and an `AGENTS.md`, and add a row to the
+  root README's layout table.

@@ -1,0 +1,11 @@
+[package]
+name = "slint-dart-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+slint = { workspace = true, features = ["compat-1-2", "std"] }
+
+[lints]
+workspace = true

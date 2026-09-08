@@ -34,7 +34,8 @@ as a source. Two files land in `lib/`, both regenerated after editing
 - `lib/todo.g.dart` — `slint_generator`: the typed `TodoApp` (properties,
   callbacks, render target), the `TodoItem` value class generated from the
   `.slint` struct, plus the embedded source. Backend-agnostic — `main.dart`
-  holds a `List<TodoItem>` and never touches a raw map.
+  keeps the list in the shared `TodoStore` (`examples/todo_shared`) and maps
+  it to `TodoItem` only at the Slint boundary, never touching a raw map.
 - `lib/todo.aot.g.dart` — `slint_compiler`: the `@Native` externs and
   `todoAppFactory` for the AOT backend.
 
@@ -81,6 +82,15 @@ Compiles the source embedded in `todo.g.dart` at runtime and renders via
 ```bash
 cd examples/todo && mise exec -- flutter run
 ```
+
+### Shared state
+
+The list itself lives in `examples/todo_shared`: `TodoStore` owns the
+add/toggle/remove-done rules (trim-on-add, ignore-empty, bounds-checked
+toggle), the seed list, and the AppBar title helper, unit-tested under
+`dart test`. `main.dart` only maps `TodoStore.items` to the generated
+`TodoItem` in `_sync()` — the same store `examples/todo_skia` drives, so a
+rule change lands in both apps at once.
 
 ### Compiled — release/profile builds
 

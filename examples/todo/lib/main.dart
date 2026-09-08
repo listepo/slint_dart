@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:slint/slint.dart';
+import 'package:todo_shared/todo_shared.dart';
 
 import 'todo.g.dart';
 
@@ -43,12 +44,9 @@ class TodoPage extends StatefulWidget {
 class _TodoPageState extends State<TodoPage> {
   TodoApp? _app;
   Object? _loadError;
-  // TodoItem is generated from the struct declared in todo.slint.
-  final List<TodoItem> _todos = [
-    const TodoItem(title: 'Wire Slint into Flutter', checked: true),
-    const TodoItem(title: 'Render this list', checked: false),
-  ];
-  int _openCount = 0;
+  // The list itself lives in the shared TodoStore (examples/todo_shared);
+  // this page only maps it to the generated TodoItem at the Slint boundary.
+  final TodoStore _store = TodoStore();
 
   @override
   void initState() {
@@ -68,26 +66,23 @@ class _TodoPageState extends State<TodoPage> {
   }
 
   void _sync() {
-    _app!.todoModel = _todos;
-    _openCount = _todos.where((t) => !t.checked).length;
+    _app!.todoModel = [
+      for (final e in _store.items)
+        TodoItem(title: e.title, checked: e.checked),
+    ];
     setState(() {});
   }
 
   void _onAddTodo(String title) {
-    final trimmed = title.trim();
-    if (trimmed.isEmpty) return;
-    _todos.add(TodoItem(title: trimmed, checked: false));
-    _sync();
+    if (_store.addTodo(title)) _sync();
   }
 
   void _onToggleTodo(int index, bool checked) {
-    if (index < 0 || index >= _todos.length) return;
-    _todos[index] = _todos[index].copyWith(checked: checked);
-    _sync();
+    if (_store.toggleTodo(index, checked)) _sync();
   }
 
   void _onRemoveDone() {
-    _todos.removeWhere((t) => t.checked);
+    _store.removeDone();
     _sync();
   }
 
@@ -104,10 +99,7 @@ class _TodoPageState extends State<TodoPage> {
     final target = _app?.renderTarget;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          '$_openCount open / ${_todos.length} total'
-          ' — ${TodoApp.defaultFactory.runtimeType}',
-        ),
+        title: Text(_store.countTitle('${TodoApp.defaultFactory.runtimeType}')),
       ),
       body: target == null
           ? Center(child: Text('$_loadError'))

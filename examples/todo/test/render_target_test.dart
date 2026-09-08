@@ -12,6 +12,15 @@ void main() {
   tearDown(() => app.dispose());
 
   group('render target', () {
+    test('starts at 0×0, like the Slint window, until resized', () {
+      // A default 800×600 buffer would not match the window's size and the
+      // renderer would reject it; before resize() there is simply no frame.
+      final target = app.renderTarget;
+      expect((target.width, target.height), (0, 0));
+      expect(target.pixels, isEmpty);
+      expect(target.render(), isFalse);
+    });
+
     test('resize reallocates the pixel buffer to match', () {
       final target = app.renderTarget;
 

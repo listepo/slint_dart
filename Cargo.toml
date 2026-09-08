@@ -1,17 +1,31 @@
 [workspace]
 resolver = "2"
 members = [
-    "slint/rust",
-    "slint_generator/rust",
-    "slint_interpreter/interpreter",
-    "slint_interpreter/rust",
-    "slint_skia/rust",
-    "slint_testing/rust",
+    "packages/slint/rust",
+    "packages/slint_generator/rust",
+    "packages/slint_interpreter/interpreter",
+    "packages/slint_interpreter/rust",
+    "packages/slint_skia/rust",
+    "packages/slint_testing/rust",
 ]
 
 # Shared lint levels; every member opts in with `[lints] workspace = true`.
 # Run as: cargo clippy --workspace --exclude slint-skia-ffi --all-targets
-# (slint-skia-ffi builds all of Skia — CI-only, see slint_skia/README.md).
+# (slint-skia-ffi builds all of Skia — CI-only, see packages/slint_skia/README.md).
+# One Slint for every crate, pinned exactly: the generated AOT crate
+# (`slint_compiler`'s rust_glue.dart) pins the same version on its own, and
+# a drift between the two means the interpreter and the compiled output
+# speak different Slint dialects. Bump all three together.
+[workspace.dependencies]
+slint = { version = "=1.17.1", default-features = false }
+slint-interpreter = { version = "=1.17.1", default-features = false }
+i-slint-compiler = "=1.17.1"
+i-slint-backend-testing = { version = "=1.17.1", default-features = false }
+i-slint-renderer-skia = "=1.17.1"
+i-slint-core = "=1.17.1"
+serde_json = "1"
+spin_on = "0.1"
+
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "warn"
 
