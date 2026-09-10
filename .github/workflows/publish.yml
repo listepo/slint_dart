@@ -8,6 +8,9 @@
 #   mise exec -- dart pub login
 #   mise exec -- dart pub publish -C packages/<name>
 # Then enable trusted publishing; later `git tag vX.Y.Z && git push --tags`.
+#
+# Per package: skip if pubspec version ≠ tag (unchanged this release),
+# or if that version is already on pub.dev.
 name: Publish to pub.dev
 
 on:
@@ -36,7 +39,7 @@ jobs:
       - name: Resolve workspace
         run: dart pub get
 
-      - name: Publish packages (dependency order)
+      - name: Publish changed packages (dependency order)
         run: |
           set -euo pipefail
           pkgs=(
@@ -51,13 +54,39 @@ jobs:
           )
           tag="${GITHUB_REF_NAME}"
           ver="${tag#v}"
+          published=0
+          skipped=0
+
+          already_on_pub() {
+            local name="$1" version="$2"
+            local code
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              "https://pub.dev/api/packages/${name}/versions/${version}")
+            [[ "$code" == "200" ]]
+          }
+
           for dir in "${pkgs[@]}"; do
             name=$(basename "$dir")
             yaml_ver=$(grep -E '^version:' "$dir/pubspec.yaml" | head -1 | awk '{print $2}' | tr -d '"' | tr -d "'")
+
             if [[ "$yaml_ver" != "$ver" ]]; then
-              echo "::error::$name version $yaml_ver does not match tag $tag (expected $ver)"
-              exit 1
+              echo "Skip $name@$yaml_ver — version unchanged for tag $tag"
+              skipped=$((skipped + 1))
+              continue
             fi
+
+            if already_on_pub "$name" "$yaml_ver"; then
+              echo "Skip $name@$yaml_ver — already on pub.dev"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
             echo "Publishing $name@$yaml_ver from $dir"
             dart pub publish -C "$dir" --force
+            published=$((published + 1))
           done
+
+          echo "Done: published=$published skipped=$skipped"
+          if [[ "$published" -eq 0 ]]; then
+            echo "No packages to publish for $tag (all skipped)."
+          fi

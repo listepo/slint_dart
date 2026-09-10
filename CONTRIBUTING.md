@@ -149,7 +149,7 @@ Then on each package page → **Admin** → **Automated publishing**:
 
 ### Later releases (from CI)
 
-1. Bump every `packages/*/pubspec.yaml` `version:` in lockstep (and changelog).
+1. Bump `version:` (and changelog) only for packages that change. Others can stay.
 2. Merge to `main`.
-3. Tag and push: `git tag v0.0.2 && git push origin v0.0.2`
-4. The `Publish to pub.dev` workflow uploads all packages.
+3. Tag with the **new** version: `git tag v0.0.2 && git push origin v0.0.2`
+4. The workflow publishes packages whose pubspec version equals the tag and is not already on pub.dev; unchanged packages are skipped.
