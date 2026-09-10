@@ -1,6 +1,6 @@
 name: todo_shared
 description: Shared todo-list state for the examples — framework-free store plus seed data and title helper used by examples/todo and examples/todo_skia.
-version: 0.1.0
+version: 0.0.1
 publish_to: none
 resolution: workspace
 

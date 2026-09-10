@@ -6,7 +6,7 @@ renderer, no event loop. Runs under plain `dart test` on
 
 ```yaml
 dev_dependencies:
-  slint_testing: ^0.1.0
+  slint_testing: ^0.0.1
 ```
 
 **Full docs:** see the docs site (`just docs-serve`) — package page under

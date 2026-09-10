@@ -6,7 +6,7 @@ slint-interpreter at runtime**. The interpreter path is independent.
 
 ```yaml
 dependencies:
-  slint_compiler: ^0.1.0
+  slint_compiler: ^0.0.1
 ```
 
 **Full docs:** see the docs site (`just docs-serve`) — package page under

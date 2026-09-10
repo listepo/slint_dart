@@ -7,7 +7,7 @@ surface; shared Rust lives in `rust/` (`slint-dart-core`). Implementations:
 
 ```yaml
 dependencies:
-  slint: ^0.1.0
+  slint: ^0.0.1
 ```
 
 **Full docs:** see the docs site (`just docs-serve`) — package page under

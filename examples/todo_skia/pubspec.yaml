@@ -1,6 +1,6 @@
 name: todo_skia_example
 description: Todo demo on the slint_skia backend — the same ui/todo.slint as examples/todo, compiled by the Skia engine at runtime and meant for a Flutter external texture.
-version: 0.1.0
+version: 0.0.1
 publish_to: none
 resolution: workspace
 
@@ -10,13 +10,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  slint: ^0.1.0
+  slint: ^0.0.1
   # Only for its build_runner builder: lib/todo.g.dart embeds ui/todo.slint
   # (slintSource, componentName, TodoItem). The typed TodoApp needs a
   # software-rendering factory, which the Skia backend does not provide yet.
-  slint_generator: ^0.1.0
-  slint_skia: ^0.1.0
-  todo_shared: ^0.1.0
+  slint_generator: ^0.0.1
+  slint_skia: ^0.0.1
+  todo_shared: ^0.0.1
 
 dev_dependencies:
   flutter_test:
