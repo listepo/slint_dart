@@ -1,6 +1,7 @@
 name: slint_testing
 description: Test Slint UIs by querying the accessibility tree — find elements by label, id, or type, click them, and assert on properties and callbacks. Built on i-slint-backend-testing.
 version: 0.0.1
+license: Apache-2.0
 homepage: https://github.com/listepo/slint_dart
 repository: https://github.com/listepo/slint_dart/tree/main/packages/slint_testing
 issue_tracker: https://github.com/listepo/slint_dart/issues

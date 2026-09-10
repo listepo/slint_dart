@@ -1,6 +1,7 @@
 name: slint_interpreter
 description: Slint runtime for Flutter via Rust FFI — slint-interpreter + software renderer. Bindings generated with cbindgen (Rust → C header) and ffigen (C header → Dart).
 version: 0.0.1
+license: Apache-2.0
 homepage: https://github.com/listepo/slint_dart
 repository: https://github.com/listepo/slint_dart/tree/main/packages/slint_interpreter
 issue_tracker: https://github.com/listepo/slint_dart/issues

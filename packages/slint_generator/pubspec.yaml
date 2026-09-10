@@ -1,6 +1,7 @@
 name: slint_generator
 description: Shared .slint → Dart codegen — typed component wrappers that run on any Slint backend, plus the slint-introspect schema extractor.
 version: 0.0.1
+license: Apache-2.0
 homepage: https://github.com/listepo/slint_dart
 repository: https://github.com/listepo/slint_dart/tree/main/packages/slint_generator
 issue_tracker: https://github.com/listepo/slint_dart/issues
