@@ -1,5 +1,6 @@
 import 'package:record_use/record_use.dart';
-import 'package:slint_compiler/aot_build.dart' show nativeStaticLibsNote;
+import 'package:slint_compiler/aot_build.dart'
+    show nativeStaticLibsNote, splitLinkFlags;
 import 'package:slint_compiler/aot_link.dart';
 import 'package:test/test.dart';
 
@@ -123,6 +124,42 @@ note: native-static-libs: -framework CoreFoundation -lSystem -lc
 
     test('an empty note is an empty list, not null', () {
       expect(nativeStaticLibsNote('note: native-static-libs:  \n'), isEmpty);
+    });
+
+    test('keeps quoted paths with spaces whole', () {
+      expect(
+        nativeStaticLibsNote(
+          'note: native-static-libs: -L "/Users/me/My SDK/lib" -lSystem\n',
+        ),
+        ['-L', '/Users/me/My SDK/lib', '-lSystem'],
+      );
+    });
+  });
+
+  group('splitLinkFlags', () {
+    test('splits on whitespace', () {
+      expect(splitLinkFlags('-la  -lb\t-lc'), ['-la', '-lb', '-lc']);
+    });
+
+    test('keeps quoted segments with spaces whole', () {
+      expect(
+        splitLinkFlags('-L "/Users/me/My SDK/lib" \'-framework\''),
+        ['-L', '/Users/me/My SDK/lib', '-framework'],
+      );
+    });
+
+    test('backslash escapes the next character', () {
+      expect(splitLinkFlags(r'-L My\ SDK/lib'), [r'-L', r'My SDK/lib']);
+    });
+
+    test('an unterminated quote runs to the end of the line', () {
+      expect(splitLinkFlags('"/Users/me/My SDK/lib'), [
+        '/Users/me/My SDK/lib',
+      ]);
+    });
+
+    test('empty segments add no flags', () {
+      expect(splitLinkFlags('   '), isEmpty);
     });
   });
 }

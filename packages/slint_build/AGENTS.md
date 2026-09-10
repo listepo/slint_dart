@@ -35,12 +35,19 @@ mise exec -- dart analyze .
 - **Source dirs passed as `dependencies` are the hook's cache key.** A hook
   that forgets to list a crate its crate depends on (e.g. `../slint/rust/`)
   will not rebuild when that crate changes. The FFI hooks list every path
-  dependency explicitly.
+  dependency explicitly. `runCargoBuild` also registers the worker script
+  (`bin/cargo_worker.dart`) itself, so edits to the worker rebuild.
 - **The cargo profile defaults to `release`** (debug Slint rendering is
   unusably slow) and is switched per package via pubspec user-defines
   (`hooks.user_defines.<pkg>.profile`), read from the workspace root
   pubspec. User-defines are hook input, so changing them invalidates the
   cache correctly.
+- **Cross-compile env keys: cargo uppercases, `cc` does not.**
+  `CARGO_TARGET_<TRIPLE>_LINKER` uses the triple with `-`/`.` as `_` and
+  UPPERCASE. `CC_<triple>` / `AR_<triple>` use the same underscore form but
+  keep the target's own case (`CC_aarch64_linux_android`) — uppercasing
+  them makes the `cc` crate miss both of its lookup forms and the NDK
+  wrapper is never used.
 - **Artifact copies, not symlinks.** The artifact is copied into the hook's
   output directory; Flutter bundles from there.
 

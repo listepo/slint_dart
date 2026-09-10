@@ -64,12 +64,22 @@ and no `SlintInterpreterFactory` (`grep -c -a`).
 - **The link line comes from rustc** (`RUSTFLAGS=--print=native-static-libs`)
   and is persisted as `native-link-flags.<triple>.txt` next to the generated
   crate. rustc prints it only on a real recompile — a missing, stale file
-  means: delete that crate's `target/` and rebuild.
+  means: delete that crate's `target/` and rebuild. The note is split with
+  `splitLinkFlags` (quote- and backslash-aware, so SDK paths with spaces
+  survive) and persisted as JSON for the same reason; pre-JSON
+  space-joined files still read back.
 - **Generated `.aot.g.dart` never mentions the `.slint` source.**
   `SlintCompilerFactory.instantiate` takes a component name only; the
   source reaches the binary as compiled code, not text.
 - **Component names are unique per package** — all components share one
-  glue dylib and one symbol namespace.
+  glue dylib and one symbol namespace. So are AOT module stems: `a/b.slint`
+  and `a_b.slint` map to the same stem, and the build hook fails loudly
+  rather than letting one overwrite the other's generated sources.
+- **A disposed component or render target never touches native code.**
+  Property/callback calls on a disposed component throw `StateError`;
+  render-target `resize`/`render`/`dispatch*` after either the target or its
+  component was disposed are no-ops (`false` for `render`) instead of FFI
+  into freed memory. Same rule in `slint_interpreter`.
 
 ## Traps
 

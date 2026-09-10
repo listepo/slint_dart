@@ -1,4 +1,9 @@
-# slint_interpreter
+---
+title: "slint_interpreter"
+description: "Slint runtime for Flutter via Rust FFI — `slint-interpreter` + software renderer. Bindings generated with cbindgen (Rust → C header) and ffigen (C header → Dart)."
+weight: 30
+---
+
 
 Slint runtime for Flutter via Rust FFI — `slint-interpreter` + software renderer. Bindings generated with cbindgen (Rust → C header) and ffigen (C header → Dart).
 

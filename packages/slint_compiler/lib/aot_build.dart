@@ -57,21 +57,26 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
   final uiPath = uiDir.uri.toFilePath();
   for (final f in slintFiles) {
     final relative = f.path.substring(uiPath.length);
+    final stemBase = relative.substring(0, relative.length - '.slint'.length);
+    final stem = stemBase.replaceAll(Platform.pathSeparator, '_');
+    // `a/b.slint` and `a_b.slint` map to the same module stem and would
+    // silently overwrite each other's generated sources in the AOT crate.
+    if (files.any((e) => e.stem == stem)) {
+      throw StateError(
+        'duplicate AOT module stem "$stem" from "$relative" — '
+        'rename one of the .slint files',
+      );
+    }
     final schema = await introspectSlint(
       f.path,
       introspectManifest: generatorRoot.resolve('rust/Cargo.toml'),
     );
     files.add(SlintAotFile(
-      stem: relative
-          .substring(0, relative.length - '.slint'.length)
-          .replaceAll(Platform.pathSeparator, '_'),
+      stem: stem,
       source: f.readAsStringSync(),
       schema: schema,
     ));
-    assetNames.add(
-      '${relative.substring(0, relative.length - '.slint'.length)}.aot.g.dart'
-          .replaceAll(Platform.pathSeparator, '/'),
-    );
+    assetNames.add('$stemBase.aot.g.dart'.replaceAll(Platform.pathSeparator, '/'));
   }
 
   final crateDir =
@@ -140,17 +145,62 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
 }
 
 /// The flag list from rustc's `native-static-libs:` note in [cargoOutput],
-/// or null when the note is absent.
+/// or null when the note is absent. Quoted segments (`"..."`, `'...'`,
+/// with `\` escapes) stay one flag, so SDK paths containing spaces survive
+/// the round trip through [_persistedNativeLinkFlags].
 List<String>? nativeStaticLibsNote(String cargoOutput) {
   const marker = 'native-static-libs:';
   for (final line in cargoOutput.split('\n').reversed) {
     final i = line.indexOf(marker);
     if (i < 0) continue;
     final flags = line.substring(i + marker.length).trim();
-    return flags.isEmpty ? const [] : flags.split(RegExp(r'\s+'));
+    return flags.isEmpty ? const [] : splitLinkFlags(flags);
   }
   return null;
 }
+
+/// Splits a linker flag line on whitespace, keeping quoted segments whole:
+/// `"..."` and `'...'` may contain spaces, a backslash escapes the next
+/// character. The surrounding quotes are stripped; an unterminated quote
+/// runs to the end of the line rather than dropping the flag.
+List<String> splitLinkFlags(String line) {
+  final flags = <String>[];
+  final current = StringBuffer();
+  var inFlag = false;
+  var quote = '';
+  for (var i = 0; i < line.length; i++) {
+    final ch = line[i];
+    if (quote.isNotEmpty) {
+      if (ch == quote) {
+        quote = '';
+      } else if (ch == r'\' && i + 1 < line.length) {
+        current.write(line[++i]);
+      } else {
+        current.write(ch);
+      }
+    } else if (ch == '"' || ch == "'") {
+      quote = ch;
+      inFlag = true;
+    } else if (ch == r'\' && i + 1 < line.length) {
+      current.write(line[++i]);
+      inFlag = true;
+    } else if (_isFlagSpace(ch)) {
+      if (inFlag) {
+        flags.add(current.toString());
+        current.clear();
+        inFlag = false;
+      }
+    } else {
+      current.write(ch);
+      inFlag = true;
+    }
+  }
+  if (inFlag) flags.add(current.toString());
+  return flags;
+}
+
+bool _isFlagSpace(String ch) =>
+    ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
 
 /// Returns the linker flags for the staticlib, persisting them under
 /// [crateDir] per [triple]: rustc prints the note only when it actually
@@ -163,12 +213,19 @@ List<String> _persistedNativeLinkFlags({
   final store = File('${crateDir.path}/native-link-flags.$triple.txt');
   final fresh = nativeStaticLibsNote(cargoOutput);
   if (fresh != null) {
-    store.writeAsStringSync(fresh.join(' '));
+    // JSON round-trips flags containing spaces; joining on spaces would
+    // corrupt them when the note is read back.
+    store.writeAsStringSync(jsonEncode(fresh));
     return fresh;
   }
   if (store.existsSync()) {
     final stored = store.readAsStringSync().trim();
-    return stored.isEmpty ? const [] : stored.split(RegExp(r'\s+'));
+    if (stored.isEmpty) return const [];
+    if (stored.startsWith('[')) {
+      return (jsonDecode(stored) as List).cast<String>();
+    }
+    // Files written before the JSON format: plain space-joined flags.
+    return stored.split(RegExp(r'\s+'));
   }
   throw StateError(
     'cargo reported no native-static-libs note and none is stored at '

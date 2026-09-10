@@ -1,0 +1,17 @@
+{{ define "main" }}
+<div class="hero">
+  <h1>Slint UI toolkit ↔ Flutter</h1>
+  <p>One typed API (<code>TodoApp</code>) over two independent backends: an interpreter for debug, AOT-compiled code for release — plus headless and on-device UI testing.</p>
+  <pre><code>TodoApp.register(); // once, at startup
+final TodoApp app = SlintComponent.load('ui/todo.slint');</code></pre>
+</div>
+<h2>Start here</h2>
+<ul class="page-list">
+  <li><a href="{{ "packages/" | relURL }}">Packages</a> — what each package does and when to reach for it</li>
+  <li><a href="{{ "guides/getting-started/" | relURL }}">Getting started</a> — toolchain, first run, first test</li>
+  <li><a href="{{ "guides/backends/" | relURL }}">Backends</a> — interpreter vs AOT, build modes, tree-shaking</li>
+  <li><a href="{{ "guides/testing/" | relURL }}">Testing UIs</a> — headless <code>slint_testing</code> and live <code>slint_patrol</code></li>
+  <li><a href="{{ "examples/" | relURL }}">Examples</a> — the todo apps</li>
+  <li><a href="{{ "contributing/" | relURL }}">Contributing</a> — workflow, commands, PR checklist</li>
+</ul>
+{{ end }}

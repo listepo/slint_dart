@@ -14,6 +14,11 @@ import 'render_target.dart';
 /// Backend-agnostic: works with any [SlintSoftwareRenderTarget] — the
 /// interpreter path (`slint_interpreter`) or the compiled path (`slint_compiler`).
 ///
+/// Sizing follows the layout: each frame the view resizes the target to the
+/// laid-out size in physical pixels. Under unbounded constraints (a `Row`, a
+/// scrollable) there is no size to report, so nothing is resized or rendered
+/// until the layout is bounded — give the view an explicit size there.
+///
 /// Example:
 /// ```dart
 /// SlintView(target: component.renderTarget)
@@ -34,6 +39,10 @@ class _SlintViewState extends State<SlintView>
   ui.Image? _image;
   bool _decoding = false;
   double _dpr = 1;
+
+  /// Bumped whenever the render target changes, so an in-flight decode from
+  /// the old target cannot overwrite the new target's image when it lands.
+  int _generation = 0;
 
   /// Size the layout asked for, in physical pixels; applied on the next tick
   /// rather than inside `build`, which must stay free of side effects.
@@ -57,6 +66,8 @@ class _SlintViewState extends State<SlintView>
   void didUpdateWidget(SlintView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.target != oldWidget.target) {
+      _generation++;
+      _decoding = false;
       _image?.dispose();
       _image = null;
       _pressedButton = SlintPointerButton.none;
@@ -80,6 +91,7 @@ class _SlintViewState extends State<SlintView>
     final w = target.width;
     final h = target.height;
     if (w <= 0 || h <= 0) return;
+    final generation = _generation;
 
     _decoding = true;
     try {
@@ -93,9 +105,11 @@ class _SlintViewState extends State<SlintView>
         h,
         ui.PixelFormat.rgba8888,
         (image) {
-          if (!mounted) {
+          // The target may have changed while the decode was in flight:
+          // a stale frame must not replace the new target's image.
+          if (!mounted || generation != _generation) {
             image.dispose();
-            _decoding = false;
+            if (generation == _generation) _decoding = false;
             return;
           }
           _image?.dispose();
@@ -125,8 +139,18 @@ class _SlintViewState extends State<SlintView>
     return LayoutBuilder(
       builder: (context, constraints) {
         _dpr = MediaQuery.devicePixelRatioOf(context);
-        _wantedWidth = (constraints.biggest.width * _dpr).toInt();
-        _wantedHeight = (constraints.biggest.height * _dpr).toInt();
+        // Unbounded constraints (a Row, a scrollable, an unconstrained box)
+        // report infinite sizes; resizing the native buffer to infinity
+        // would throw in toInt(). Report 0 instead — the tick skips
+        // resize/render until the layout is bounded.
+        final logicalW = constraints.biggest.width;
+        final logicalH = constraints.biggest.height;
+        _wantedWidth = logicalW.isFinite
+            ? (logicalW * _dpr).toInt().clamp(0, 1 << 30)
+            : 0;
+        _wantedHeight = logicalH.isFinite
+            ? (logicalH * _dpr).toInt().clamp(0, 1 << 30)
+            : 0;
 
         return Focus(
           focusNode: _focusNode,

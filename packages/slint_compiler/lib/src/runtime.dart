@@ -125,6 +125,7 @@ class _AotComponent implements SlintSoftwareComponent {
 
   @override
   Object? getProperty(String name) {
+    if (_disposed) throw StateError('Component is disposed');
     final nameC = name.toNativeUtf8();
     try {
       final p = _ops.getProperty(_handle, nameC.cast());
@@ -137,6 +138,7 @@ class _AotComponent implements SlintSoftwareComponent {
 
   @override
   void setProperty(String name, Object? value) {
+    if (_disposed) throw StateError('Component is disposed');
     final nameC = name.toNativeUtf8();
     final jsonC = jsonEncode(value).toNativeUtf8();
     try {
@@ -151,6 +153,7 @@ class _AotComponent implements SlintSoftwareComponent {
 
   @override
   void setCallbackHandler(String name, SlintCallbackHandler handler) {
+    if (_disposed) throw StateError('Component is disposed');
     // Create the trampoline first; only close the old one after native code
     // has the new pointer, so a failed set cannot leave a dangling fn.
     final callable = ffi.NativeCallable<SlintAotCallbackNative>.isolateLocal(
@@ -186,6 +189,7 @@ class _AotComponent implements SlintSoftwareComponent {
 
   @override
   Object? invokeCallback(String name, List<Object?> arguments) {
+    if (_disposed) throw StateError('Component is disposed');
     final nameC = name.toNativeUtf8();
     final argsC = jsonEncode(arguments).toNativeUtf8();
     try {
@@ -242,7 +246,11 @@ class _AotRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   void resize(int width, int height) {
-    if (_disposed || (width == _width && height == _height)) return;
+    if (_disposed ||
+        _component._disposed ||
+        (width == _width && height == _height)) {
+      return;
+    }
     _freeBuffer();
     _width = width;
     _height = height;
@@ -256,13 +264,15 @@ class _AotRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   bool render() {
-    if (_disposed || _pixelBuffer.address == 0) return false;
-    return _component._ops
-        .render(_component._handle, _pixelBuffer, _pixels.length);
+    if (_disposed || _component._disposed || _pixelBuffer.address == 0) {
+      return false;
+    }
+    return _component._ops.render(_component._handle, _pixelBuffer, _pixels.length);
   }
 
   @override
   void dispatchPointerEvent(SlintPointerEvent event) {
+    if (_disposed || _component._disposed) return;
     _component._ops.pointerEvent(
       _component._handle,
       event.kind.index,
@@ -276,6 +286,7 @@ class _AotRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   void dispatchKeyEvent(SlintKeyEvent event) {
+    if (_disposed || _component._disposed) return;
     final textC = event.text.toNativeUtf8();
     try {
       _component._ops.keyEvent(_component._handle, textC.cast(), event.pressed);

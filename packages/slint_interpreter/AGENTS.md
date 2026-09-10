@@ -63,6 +63,11 @@ No tests of its own: `examples/todo`, `packages/slint_patrol`, and
   `slint/AGENTS.md`) before anything else; off the owning thread it sets the
   error and returns the failure value, and the `free`s leak rather than drop
   an `Rc` on the wrong thread.
+- **A disposed component or render target never touches native code.**
+  Property/callback/query calls on a disposed component throw `StateError`;
+  render-target `resize`/`render`/`dispatch*` after either the target or its
+  component was disposed are no-ops (`false` for `render`) instead of FFI
+  into freed memory. Same rule in the AOT runtime (`slint_compiler`).
 - **Do not merge this crate with `slint-testing-ffi`.** Each dylib has its
   own statically linked Slint so their platforms don't collide
   (`init_no_event_loop()` panics if a platform already exists).

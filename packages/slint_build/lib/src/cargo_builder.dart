@@ -156,6 +156,10 @@ Future<CargoBuildResult> runCargoBuild(
     output.dependencies.add(uri);
   }
   output.dependencies.addAll(extraDependencies);
+  // The worker script is resolved through the package config, not
+  // [sourceDirs], but a syntax error in it surfaces as a hook failure in
+  // whichever package builds first — track it so edits rebuild.
+  output.dependencies.add(workerScript);
 
   return (artifact: bundled.uri, cargoOutput: response.output);
 }
@@ -203,6 +207,22 @@ String rustTriple(CodeConfig code) {
   return triple;
 }
 
+
+/// Env-var names cargo and the `cc` crate expect for [triple].
+///
+/// Exposed for tests: cargo uppercases the triple; `cc` keeps its case.
+({String cargoLinkerKey, String ccKey, String arKey}) crossCompileEnvKeys(
+  String triple,
+) {
+  final cargoTriple =
+      triple.toUpperCase().replaceAll('-', '_').replaceAll('.', '_');
+  final ccTriple = triple.replaceAll('-', '_').replaceAll('.', '_');
+  return (
+    cargoLinkerKey: 'CARGO_TARGET_${cargoTriple}_LINKER',
+    ccKey: 'CC_$ccTriple',
+    arKey: 'AR_$ccTriple',
+  );
+}
 Map<String, String> _crossCompileEnv(CodeConfig code, String triple) {
   final env = <String, String>{};
   final os = code.targetOS;
@@ -221,11 +241,16 @@ Map<String, String> _crossCompileEnv(CodeConfig code, String triple) {
           triple == 'armv7-linux-androideabi' ? 'armv7a-linux-androideabi' : triple;
       final ext = Platform.isWindows ? '.cmd' : '';
       final wrapper = '${binDir.path}${Platform.pathSeparator}$clangTriple$api-clang$ext';
-      final tripleEnv = triple.toUpperCase().replaceAll('-', '_');
-      env['CARGO_TARGET_${tripleEnv}_LINKER'] = wrapper;
-      env['CC_$triple'] = wrapper;
+      // cargo wants CARGO_TARGET_<TRIPLE>_LINKER uppercased with `-`/`.` as `_`.
+      // The `cc` crate looks up CC_/AR_ with the target's own case
+      // (`CC_aarch64_linux_android`, not `CC_AARCH64_LINUX_ANDROID`).
+      final keys = crossCompileEnvKeys(triple);
+      env[keys.cargoLinkerKey] = wrapper;
+      env[keys.ccKey] = wrapper;
       final archiver = code.cCompiler?.archiver;
-      if (archiver != null) env['AR_$triple'] = archiver.toFilePath();
+      if (archiver != null) {
+        env[keys.arKey] = archiver.toFilePath();
+      }
     }
   }
   return env;

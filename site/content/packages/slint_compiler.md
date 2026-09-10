@@ -1,4 +1,9 @@
-# slint_compiler
+---
+title: "slint_compiler"
+description: "The AOT backend for the wrappers `slint_generator` emits: `.slint` files"
+weight: 20
+---
+
 
 The AOT backend for the wrappers `slint_generator` emits: `.slint` files
 compiled ahead of time with `slint-build` into the app's own code asset —

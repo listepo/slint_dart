@@ -1,4 +1,9 @@
-# slint_testing
+---
+title: "slint_testing"
+description: "Test Slint UIs from Dart, through the accessibility tree."
+weight: 45
+---
+
 
 Test Slint UIs from Dart, through the accessibility tree.
 
@@ -116,6 +121,6 @@ element query itself.
 ## Testing the running app instead
 
 This package tests a component headlessly — fast, but not the app a user
-touches. [`slint_patrol`](../slint_patrol) covers that: Patrol finders over
+touches. [`slint_patrol`]({{< relref "packages/slint_patrol" >}}) covers that: Patrol finders over
 the live component in a real widget tree, tapping and typing through real
 Flutter gestures.

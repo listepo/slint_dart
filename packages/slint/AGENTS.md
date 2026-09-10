@@ -53,6 +53,13 @@ Or from the repo root: `mise exec -- dart run melos run test:flutter`.
 - **`SlintView` multiplies by the device pixel ratio on the way in and never
   sets Slint's scale factor**, so Slint logical == physical. `slint_patrol`
   divides by the same ratio on the way out; change both together.
+- **`SlintView` drops stale decodes and tolerates unbounded layout.** An
+  in-flight `decodeImageFromPixels` that lands after the render target
+  changed disposes its image instead of replacing the new target's frame
+  (generation guard in `didUpdateWidget`). Under unbounded constraints
+  (a `Row`, a scrollable, an unconstrained box) the wanted size is reported
+  as 0 — the tick skips resize/render until the layout is bounded — instead
+  of throwing in `toInt()` on infinity.
 - **Frames go to `decodeImageFromPixels` untouched.** Slint's software
   renderer writes premultiplied RGBA and Flutter's `rgba8888` *is*
   premultiplied ("Premultiplied alpha is used", dart:ui `PixelFormat`), so

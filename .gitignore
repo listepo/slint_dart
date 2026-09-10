@@ -5,3 +5,8 @@ build/
 target/
 pubspec.lock
 /.serena
+
+# Hugo docs site
+site/public/
+site/resources/
+site/.hugo_build.lock

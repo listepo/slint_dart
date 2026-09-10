@@ -65,3 +65,11 @@ check:
 bindings pkg:
     cd packages/{{pkg}}/rust && cbindgen --output include/{{pkg}}_ffi.h
     cd packages/{{pkg}} && {{dart}} run ffigen --config ffigen.yaml
+
+# Serve the docs site locally (http://localhost:1313).
+docs-serve:
+    mise exec -- hugo serve --source site
+
+# Build the docs site into site/public (what the Pages workflow deploys).
+docs-build:
+    mise exec -- hugo --source site --minify

@@ -1,4 +1,9 @@
-# slint (core)
+---
+title: "slint (core)"
+description: "Abstract render-engine API for Slint on Flutter."
+weight: 10
+---
+
 
 Abstract render-engine API for Slint on Flutter.
 

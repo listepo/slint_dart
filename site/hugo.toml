@@ -1,0 +1,12 @@
+baseURL = "https://example.com/slint_dart/"
+title = "slint_dart"
+defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = false
+enableRobotsTXT = true
+
+[params]
+  description = "Slint UI toolkit ↔ Flutter integration: typed codegen, interpreter and AOT backends, headless and Patrol UI testing."
+
+[markup]
+  [markup.highlight]
+    style = "github"

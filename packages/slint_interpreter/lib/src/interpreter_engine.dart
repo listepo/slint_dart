@@ -130,6 +130,7 @@ class InterpreterSlintComponent
 
   @override
   Object? getProperty(String name) {
+    if (_disposed) throw StateError('Component is disposed');
     final nameCStr = name.toNativeUtf8();
     try {
       final jsonCStr = slint_interpreter_instance_get_property(_instanceHandle, nameCStr.cast());
@@ -146,6 +147,7 @@ class InterpreterSlintComponent
 
   @override
   List<Map<String, Object?>> queryElements(String kind, [String? needle]) {
+    if (_disposed) throw StateError('Component is disposed');
     final kindCStr = kind.toNativeUtf8();
     final needleCStr = needle?.toNativeUtf8();
     try {
@@ -168,6 +170,7 @@ class InterpreterSlintComponent
 
   @override
   void setProperty(String name, Object? value) {
+    if (_disposed) throw StateError('Component is disposed');
     final nameCStr = name.toNativeUtf8();
     final jsonCStr = jsonEncode(value).toNativeUtf8();
 
@@ -188,6 +191,7 @@ class InterpreterSlintComponent
 
   @override
   void setCallbackHandler(String name, SlintCallbackHandler handler) {
+    if (_disposed) throw StateError('Component is disposed');
     // Create the trampoline first; only close the old one after rust has
     // the new pointer, so a failed set_callback cannot leave a dangling fn.
     final callable = NativeCallable<_InterpreterSlintCallbackFn>.isolateLocal(
@@ -230,6 +234,7 @@ class InterpreterSlintComponent
 
   @override
   Object? invokeCallback(String name, List<Object?> arguments) {
+    if (_disposed) throw StateError('Component is disposed');
     final nameCStr = name.toNativeUtf8();
     final argsJson = jsonEncode(arguments);
     final argsCStr = argsJson.toNativeUtf8();
@@ -298,7 +303,9 @@ class InterpreterSoftwareRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   void resize(int width, int height) {
-    if (_disposed || (width == _width && height == _height)) {
+    if (_disposed ||
+        _component._disposed ||
+        (width == _width && height == _height)) {
       return;
     }
     _freeBuffer();
@@ -314,7 +321,9 @@ class InterpreterSoftwareRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   bool render() {
-    if (_disposed || _pixelBuffer.address == 0) {
+    if (_disposed ||
+        _component._disposed ||
+        _pixelBuffer.address == 0) {
       return false;
     }
     return slint_interpreter_instance_render(
@@ -326,6 +335,7 @@ class InterpreterSoftwareRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   void dispatchPointerEvent(SlintPointerEvent event) {
+    if (_disposed || _component._disposed) return;
     slint_interpreter_instance_pointer_event(
       _component._instanceHandle,
       event.kind.index,
@@ -339,6 +349,7 @@ class InterpreterSoftwareRenderTarget implements SlintSoftwareRenderTarget {
 
   @override
   void dispatchKeyEvent(SlintKeyEvent event) {
+    if (_disposed || _component._disposed) return;
     final textCStr = event.text.toNativeUtf8();
     try {
       slint_interpreter_instance_key_event(
