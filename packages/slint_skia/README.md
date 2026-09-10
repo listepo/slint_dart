@@ -6,7 +6,7 @@ bridge work today; GPU surface and texture export are still the upgrade path.
 
 ```yaml
 dependencies:
-  slint_skia: ^0.1.0
+  slint_skia: ^0.0.1
 ```
 
 **Full docs:** see the docs site (`just docs-serve`) — package page under

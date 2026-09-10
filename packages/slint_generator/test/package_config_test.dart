@@ -12,8 +12,8 @@ name: todo_example
 dependencies:
   flutter:
     sdk: flutter
-  slint: ^0.1.0
-  slint_interpreter: ^0.1.0
+  slint: ^0.0.1
+  slint_interpreter: ^0.0.1
 ''');
       expect(deps, containsAll(['flutter', 'slint', 'slint_interpreter']));
     });
@@ -22,9 +22,9 @@ dependencies:
       final deps = runtimeDependencies('''
 name: todo_example
 dependencies:
-  slint: ^0.1.0
+  slint: ^0.0.1
 dev_dependencies:
-  slint_compiler: ^0.1.0
+  slint_compiler: ^0.0.1
   test: ^1.25.0
 ''');
       expect(deps, contains('slint'));
@@ -45,7 +45,7 @@ dev_dependencies:
 name: todo_example
 description: uses slint_compiler for the AOT path
 dependencies:
-  slint: ^0.1.0
+  slint: ^0.0.1
 ''');
       expect(deps, isNot(contains('slint_compiler')));
     });

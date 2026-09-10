@@ -6,7 +6,7 @@ itself. Used by the FFI packages and the AOT build/link hooks.
 
 ```yaml
 dependencies:
-  slint_build: ^0.1.0
+  slint_build: ^0.0.1
 ```
 
 **Full docs:** see the docs site (`just docs-serve`) — package page under
