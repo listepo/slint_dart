@@ -21,8 +21,9 @@ drives cargo through this package instead of shelling out itself.
   (`slint_interpreter`, `slint_skia`): `runCargoBuild` plus emitting the
   cdylib as a `DynamicLoadingBundled` code asset.
 - Target-triple mapping (`rustTriple`) and cross-compile env for Android
-  NDK / iOS / macOS. Android env keys use the triple with `-` and `.` as
-  `_` (`CC_AARCH64_LINUX_ANDROID`), as cargo and the `cc` crate require.
+  NDK / iOS / macOS. Cargo gets `CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER`
+  (uppercased); the `cc` crate gets `CC_aarch64_linux_android` /
+  `AR_aarch64_linux_android` (same underscores, original case).
 
 ## The worker
 

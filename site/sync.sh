@@ -5,10 +5,12 @@
 # Layout: every package README becomes site/content/packages/<pkg>.md,
 # examples land under site/content/examples/, guides under
 # site/content/guides/, and CONTRIBUTING.md becomes the contributing page.
-# Front matter carries the title (first `# ` line) and description (first
-# non-empty line after it); the body is the README with that first `# `
-# heading stripped (the page title renders from front matter) and intra-repo
-# `.md` links rewritten to Hugo relrefs.
+# Front matter carries the title (first `# ` line), description (first
+# non-heading prose line after it), and weight. Section `_index.md` pages set
+# `cascade: {type: docs}` for Hextra sidebars — sync does not need to emit
+# `type`. The body is the README with that first `# ` heading stripped (the
+# page title renders from front matter) and intra-repo `.md` links rewritten
+# to Hugo relrefs.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,7 +32,15 @@ page_from_readme() {
   local src="$1" dest="$2" weight="$3"
   local title desc
   title="$(sed -n 's/^# //p' "$src" | head -n 1)"
-  desc="$(awk 'NR>1 && NF {print; exit}' "$src")"
+  # First prose line: skip blanks, headings, lists, fenced code (incl. body), and wrapped list continuations.
+  desc="$(awk 'NR>1 {
+    if ($0 ~ /^```/) { fence = !fence; next }
+    if (fence) next
+    if ($0 ~ /^[[:space:]]*$/) next
+    if ($0 ~ /^#/ || $0 ~ /^[-*] /) next
+    if ($0 ~ /^[[:space:]]/) next
+    print; exit
+  }' "$src")"
   {
     printf -- '---\ntitle: "%s"\ndescription: "%s"\nweight: %s\n---\n\n' \
       "${title//\"/\\\"}" "${desc//\"/\\\"}" "$weight"

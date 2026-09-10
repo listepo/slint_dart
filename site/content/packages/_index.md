@@ -2,6 +2,8 @@
 title: "Packages"
 description: "What each package does and when to reach for it."
 weight: 10
+cascade:
+  type: docs
 ---
 
 The eight Dart packages plus the example apps. Each page below is generated

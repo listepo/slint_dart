@@ -1,6 +1,6 @@
 ---
 title: "Contributing"
-description: "## Setup"
+description: "The root `README.md` describes each package; each package has a `README.md`"
 weight: 10
 ---
 
