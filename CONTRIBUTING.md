@@ -20,9 +20,10 @@ packages/        the Dart packages, each with its Rust crate(s) inside
 examples/        apps consuming the packages through the workspace
 ```
 
-The root `README.md` describes each package; each package has a `README.md`
-(documentation of record) and an `AGENTS.md` (invariants and traps, for
-humans and AI agents alike).
+The root `README.md` describes each package. Full package/example docs live
+under `site/content/` (`just docs-serve`). Package and example `README.md`
+files are short pub.dev overviews. Each package also has an `AGENTS.md`
+(invariants and traps, for humans and AI agents alike).
 
 ## Everyday commands
 
@@ -88,8 +89,9 @@ measured breakdown ("Where the bytes go") and the `cargo bloat` recipe.
    (see `packages/slint_compiler/AGENTS.md` for what to verify in the bundle).
 3. Generated files (`*.g.dart`, `*.aot.g.dart`, `bindings.g.dart`,
    `rust/include/*.h`) are regenerated, not hand-edited, and committed.
-4. The affected package `README.md` is updated in the same change; a new
-   invariant lands in that package's `AGENTS.md`.
+4. Docs in `site/content/` (and the short package/example README overview, if
+   the blurb changed) are updated in the same change; a new invariant lands in
+   that package's `AGENTS.md`.
 
 Commit messages follow conventional-commit style (`feat:`, `fix:`, `test:`,
 `docs:`, `refactor:`), imperative subject, body explaining the why.
@@ -101,7 +103,8 @@ Commit messages follow conventional-commit style (`feat:`, `fix:`, `test:`,
 2. Add `packages/<name>` to the root `pubspec.yaml` `workspace:` list; a
    Rust crate goes into the root `Cargo.toml` `members` with
    `[lints] workspace = true` in its own `Cargo.toml`.
-3. Write its `README.md` and `AGENTS.md`; add a row to the root README's
+3. Write its short `README.md`, full docs under `site/content/packages/`, and
+   `AGENTS.md`; add a row to the root README's
    layout table.
 4. If it ships a native library: a `hook/build.dart` through `slint_build`,
    `ffigen.yaml` + `rust/cbindgen.toml`, and the generated bindings committed.

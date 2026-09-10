@@ -1,13 +1,14 @@
-# slint (core)
+# slint
 
-Abstract render-engine API for Slint on Flutter.
+Abstract render-engine API for Slint on Flutter: `SlintEngine`,
+`SlintComponent`, `SlintRenderTarget`, and input events. Pure Dart on the
+surface; shared Rust lives in `rust/` (`slint-dart-core`). Implementations:
+`slint_interpreter` (software) and `slint_skia` (Skia).
 
-- `lib/` — the Dart-side mirror of `i-slint-core` / `slint-interpreter` concepts: `SlintEngine`, `SlintComponentDefinition`, `SlintComponent`, `SlintRenderTarget`, input events. Pure Dart, no FFI.
-- `rust/` — `slint-dart-core`: shared Rust crate wrapping `slint-interpreter` behind a renderer-agnostic API (compile, instantiate, JSON value bridge, event mapping). No C ABI here — the plugin crates own that.
+```yaml
+dependencies:
+  slint: ^0.1.0
+```
 
-Implementations: `slint_interpreter` (software renderer), `slint_skia` (Skia renderer).
-
-`SlintView` sizes the target from the layout each frame (physical pixels).
-In an unbounded layout (a `Row`, a scrollable) there is no size to report,
-so it renders nothing until the layout is bounded — give it an explicit
-size there.
+**Full docs:** see the docs site (`just docs-serve`) — package page under
+Packages, plus the [Backends](../../site/content/guides/backends.md) guide.

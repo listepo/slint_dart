@@ -6,5 +6,6 @@ cascade:
   type: docs
 ---
 
-The example apps. Each page is generated from that example's `README.md` by
-`site/sync.sh`; edit the README, not the generated page.
+The example apps. Each page below is the full documentation for that example —
+edit these files under `site/content/examples/`. Example READMEs in the repo
+are short overviews that point here.

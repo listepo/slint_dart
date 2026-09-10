@@ -245,14 +245,15 @@ release builds (fat LTO) take minutes; run them in the background.
 
 - Commit messages: conventional-commit style (`feat:`, `test:`, `fix:`),
   imperative subject, body explains the why. Commit only when asked.
-- READMEs are the documentation of record; update the affected package
-  README (and the root one for cross-cutting changes) in the same change.
-  A new invariant goes into the owning package's `AGENTS.md`; one that
-  spans packages goes here.
+- Full docs live under `site/content/` (Hugo/Hextra). Package/example
+  `README.md` files are short pub.dev overviews — update the site page for
+  substance, and the README only when the blurb changes. Root README for
+  cross-cutting layout. A new invariant goes into the owning package's
+  `AGENTS.md`; one that spans packages goes here.
 - Rust debug/release profile for the crates is a pubspec user-define
   (`hooks.user_defines.<pkg>.profile`) read from the workspace root
   pubspec — independent of Flutter's `--debug`/`--release`.
 - Adding a package: create it under `packages/`, add it to the root
   `pubspec.yaml` `workspace:` list (and its crate to `Cargo.toml`
-  `members`), give it a `README.md` and an `AGENTS.md`, and add a row to the
-  root README's layout table.
+  `members`), give it a short `README.md`, a `site/content/packages/` page,
+  and an `AGENTS.md`, and add a row to the root README's layout table.

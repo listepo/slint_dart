@@ -6,6 +6,6 @@ cascade:
   type: docs
 ---
 
-The eight Dart packages plus the example apps. Each page below is generated
-from that package's `README.md` — the documentation of record — by
-`site/sync.sh`; edit the README, not the generated page.
+The eight Dart packages. Each page below is the full documentation for that
+package — edit these files under `site/content/packages/`. Package READMEs
+in the repo are short pub.dev overviews that point here.

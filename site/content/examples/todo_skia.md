@@ -13,7 +13,7 @@ This is an honest skeleton, like the backend it sits on. What works today is
 the interpreter half: compile, instantiate, property bridge. What the backend
 has not grown yet — GPU surface, texture export, callbacks, input — the page
 reports on screen in the words of the backend's own `UnimplementedError`s
-instead of a blank `Texture`. See `packages/slint_skia/README.md`, "Shortcuts &
+instead of a blank `Texture`. See the [slint_skia package]({{< relref "packages/slint_skia" >}}), "Shortcuts &
 Ceilings", for the upgrade path; when `render()` returns true and
 `textureId` resolves, `main.dart` switches to `Texture(textureId:)` on its
 own.
