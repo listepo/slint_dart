@@ -6,7 +6,7 @@ from `slint_generator`, and runtime compile via `SlintComponent.loadAsset`.
 
 ```yaml
 dependencies:
-  slint_interpreter: ^0.1.0
+  slint_interpreter: ^0.0.1
 ```
 
 **Full docs:** see the docs site (`just docs-serve`) — package page under

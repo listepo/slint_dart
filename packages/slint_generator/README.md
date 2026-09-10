@@ -6,7 +6,7 @@ AOT-compiled path (`slint_compiler`).
 
 ```yaml
 dev_dependencies:
-  slint_generator: ^0.1.0
+  slint_generator: ^0.0.1
 ```
 
 **Full docs:** see the docs site (`just docs-serve`) — package page under
