@@ -1,0 +1,63 @@
+# Publish packages/* to pub.dev when a version tag is pushed.
+# On each package Admin → Automated publishing:
+#   repository: listepo/slint_dart
+#   tag pattern: v{{version}}
+#   environment: pub.dev
+#
+# First version of each package must be published manually:
+#   mise exec -- dart pub login
+#   mise exec -- dart pub publish -C packages/<name>
+# Then enable trusted publishing; later `git tag vX.Y.Z && git push --tags`.
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pub.dev
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # Configures OIDC credentials for subsequent `dart pub publish` calls.
+      - uses: dart-lang/setup-dart@v1
+
+      - name: Resolve workspace
+        run: dart pub get
+
+      - name: Publish packages (dependency order)
+        run: |
+          set -euo pipefail
+          pkgs=(
+            packages/slint
+            packages/slint_build
+            packages/slint_generator
+            packages/slint_testing
+            packages/slint_compiler
+            packages/slint_interpreter
+            packages/slint_skia
+            packages/slint_patrol
+          )
+          tag="${GITHUB_REF_NAME}"
+          ver="${tag#v}"
+          for dir in "${pkgs[@]}"; do
+            name=$(basename "$dir")
+            yaml_ver=$(grep -E '^version:' "$dir/pubspec.yaml" | head -1 | awk '{print $2}' | tr -d '"' | tr -d "'")
+            if [[ "$yaml_ver" != "$ver" ]]; then
+              echo "::error::$name version $yaml_ver does not match tag $tag (expected $ver)"
+              exit 1
+            fi
+            echo "Publishing $name@$yaml_ver from $dir"
+            dart pub publish -C "$dir" --force
+          done

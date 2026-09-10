@@ -1,7 +1,10 @@
 name: slint_build
 description: Shared build-hook plumbing for the slint_dart packages — runs cargo through a bazel_worker persistent worker and emits code assets.
-version: 0.1.0
-publish_to: none
+version: 0.0.1
+license: Apache-2.0
+homepage: https://github.com/listepo/slint_dart
+repository: https://github.com/listepo/slint_dart/tree/main/packages/slint_build
+issue_tracker: https://github.com/listepo/slint_dart/issues
 resolution: workspace
 
 environment:

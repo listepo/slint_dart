@@ -108,3 +108,48 @@ Commit messages follow conventional-commit style (`feat:`, `fix:`, `test:`,
    layout table.
 4. If it ships a native library: a `hook/build.dart` through `slint_build`,
    `ffigen.yaml` + `rust/cbindgen.toml`, and the generated bindings committed.
+
+## Publishing to pub.dev
+
+Packages under `packages/` share one version and publish from git tags `vX.Y.Z`
+(see `.github/workflows/publish.yml`). Tag pattern on pub.dev: `v{{version}}`.
+
+### First time (manual)
+
+pub.dev allows automated publishing only **after** the package name exists.
+Do this once per package, from a clean git tree, logged in as the pub.dev account:
+
+```bash
+cd /path/to/slint_dart
+mise exec -- dart pub get
+mise exec -- dart pub login   # opens browser; use the same Google account as pub.dev
+```
+
+Publish in dependency order (hosted deps must already be on pub.dev):
+
+```bash
+mise exec -- dart pub publish -C packages/slint
+mise exec -- dart pub publish -C packages/slint_build
+mise exec -- dart pub publish -C packages/slint_generator
+mise exec -- dart pub publish -C packages/slint_testing
+mise exec -- dart pub publish -C packages/slint_compiler
+mise exec -- dart pub publish -C packages/slint_interpreter
+mise exec -- dart pub publish -C packages/slint_skia
+mise exec -- dart pub publish -C packages/slint_patrol
+```
+
+Dry-run without uploading: add `--dry-run` to any of those commands.
+
+Then on each package page → **Admin** → **Automated publishing**:
+
+1. Enable publishing from GitHub Actions
+2. Repository: `listepo/slint_dart`
+3. Tag pattern: `v{{version}}`
+4. Require environment: `pub.dev` (create that environment in the GitHub repo settings)
+
+### Later releases (from CI)
+
+1. Bump every `packages/*/pubspec.yaml` `version:` in lockstep (and changelog).
+2. Merge to `main`.
+3. Tag and push: `git tag v0.0.2 && git push origin v0.0.2`
+4. The `Publish to pub.dev` workflow uploads all packages.
