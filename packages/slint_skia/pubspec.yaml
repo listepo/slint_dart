@@ -28,7 +28,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  ffigen: ^21.0.0
+  ffigen: ^22.0.0
 
 # The platform half of the GPU path: each plugin registers the Flutter
 # texture slint-skia-ffi renders into (see lib/src/skia_engine.dart).
