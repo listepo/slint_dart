@@ -26,7 +26,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Configures OIDC credentials for subsequent `dart pub publish` calls.
       # Before flutter-action on purpose: the action that runs last wins PATH,
