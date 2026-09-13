@@ -12,9 +12,9 @@ crate-type = ["cdylib", "staticlib"]
 # backend; this crate adds only the testing platform and element queries.
 # No direct `slint` dependency: everything this crate touches comes through
 # slint-dart-interpreter, which already enables the features it needs.
-slint-dart-interpreter = { path = "../../slint_interpreter/interpreter" }
+slint-dart-interpreter = { path = "../../slint_build/interpreter" }
 i-slint-backend-testing = { workspace = true, default-features = true }
-serde_json = { workspace = true }
+slint-dart-core = { path = "../../slint/rust" }
 
 [lints]
 workspace = true

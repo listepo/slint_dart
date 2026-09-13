@@ -71,8 +71,10 @@ void main() {
     test('agrees with the C symbol prefix for the same component', () {
       // Both derive from snakeFromPascal; if one changes, the wrapper stops
       // referring to the factory the AOT backend actually declares.
-      expect(aotFactoryName('TodoApp'),
-          '${camelCase(snakeFromPascal('TodoApp').replaceAll('_', '-'))}Factory');
+      expect(
+        aotFactoryName('TodoApp'),
+        '${camelCase(snakeFromPascal('TodoApp').replaceAll('_', '-'))}Factory',
+      );
     });
   });
 }

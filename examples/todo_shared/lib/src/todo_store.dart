@@ -6,27 +6,16 @@
 /// and owns the list here, so the rules — trim-on-add, ignore-empty,
 /// bounds-checked toggle, drop-checked-on-remove — are implemented once.
 ///
-/// The map shape of [TodoEntry.toSlint] matches the generated `TodoItem`
-/// exactly (`{'title': ..., 'checked': ...}` keyed by the Slint field
-/// names), so either backend accepts it without converting through the
-/// generated class first.
+/// Nothing here speaks Slint's wire format: each app converts to its
+/// generated `TodoItem` and reaches Slint only through the generated wrapper.
 library;
 
 /// One todo row: the same fields as the `TodoItem` struct in `todo.slint`.
 class TodoEntry {
   const TodoEntry({required this.title, required this.checked});
 
-  /// Reads the value as the backends represent it.
-  factory TodoEntry.fromSlint(Map<Object?, Object?> value) => TodoEntry(
-    title: value['title'] as String,
-    checked: value['checked'] as bool,
-  );
-
   final String title;
   final bool checked;
-
-  /// The representation the backends expect, keyed by the Slint field names.
-  Map<String, Object?> toSlint() => {'title': title, 'checked': checked};
 
   TodoEntry copyWith({String? title, bool? checked}) =>
       TodoEntry(title: title ?? this.title, checked: checked ?? this.checked);
@@ -59,7 +48,7 @@ String todoCountTitle({
 }) => '$open open / $total total — $backend';
 
 /// Owns the todo list for an example app. Plain Dart, no Flutter import,
-/// so it is unit-testable under `dart test` and usable from any backend.
+/// so it is unit-testable without a widget tree and usable from any backend.
 class TodoStore {
   TodoStore([List<TodoEntry>? initial])
     : _items = List.of(initial ?? initialTodoEntries);

@@ -42,30 +42,27 @@ Future<WorkResponse> runCargoRequest(List<String> args) async {
     final targetTriple = spec['targetTriple'] as String;
     final cargoProfile = spec['cargoProfile'] as String;
     final artifactKind = spec['artifactKind'] as String? ?? 'cdylib';
-    final extraEnv = (spec['extraEnv'] as Map<String, Object?>? ?? {})
-        .map((k, v) => MapEntry(k, v as String));
+    final extraEnv = (spec['extraEnv'] as Map<String, Object?>? ?? {}).map(
+      (k, v) => MapEntry(k, v as String),
+    );
 
     final cargo = Platform.environment['CARGO'] ?? 'cargo';
     // Merge — Process.run's environment: replaces the whole env, so a
     // bare extraEnv would drop PATH and cargo would not resolve.
     final environment = Map<String, String>.of(Platform.environment)
       ..addAll(extraEnv);
-    final result = await Process.run(
-      cargo,
-      [
-        'build',
-        '--manifest-path',
-        manifestPath,
-        '-p',
-        crateName,
-        '--target',
-        targetTriple,
-        '--profile',
-        cargoProfile,
-        '--message-format=json-render-diagnostics',
-      ],
-      environment: environment,
-    );
+    final result = await Process.run(cargo, [
+      'build',
+      '--manifest-path',
+      manifestPath,
+      '-p',
+      crateName,
+      '--target',
+      targetTriple,
+      '--profile',
+      cargoProfile,
+      '--message-format=json-render-diagnostics',
+    ], environment: environment);
 
     final log = StringBuffer(result.stderr as String);
     if (result.exitCode != 0) {
@@ -75,12 +72,16 @@ Future<WorkResponse> runCargoRequest(List<String> args) async {
       return WorkResponse(exitCode: result.exitCode, output: log.toString());
     }
 
-    final artifact =
-        _findArtifact(result.stdout as String, crateName, artifactKind);
+    final artifact = _findArtifact(
+      result.stdout as String,
+      crateName,
+      artifactKind,
+    );
     if (artifact == null) {
       return WorkResponse(
         exitCode: 1,
-        output: '$log\nno $artifactKind artifact reported by cargo for $crateName',
+        output:
+            '$log\nno $artifactKind artifact reported by cargo for $crateName',
       );
     }
     log.writeln('ARTIFACT:$artifact');
@@ -88,7 +89,8 @@ Future<WorkResponse> runCargoRequest(List<String> args) async {
   } on ProcessException catch (e) {
     return WorkResponse(
       exitCode: 66,
-      output: 'failed to run ${e.executable}: ${e.message}\n'
+      output:
+          'failed to run ${e.executable}: ${e.message}\n'
           'hint: install Rust via rustup (https://rustup.rs) and make sure '
           'cargo is on PATH.',
     );

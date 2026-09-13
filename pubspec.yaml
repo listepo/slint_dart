@@ -32,11 +32,11 @@ melos:
   # prompts for a package unless `--no-select` is passed.
   scripts:
     analyze:
-      description: dart analyze, one package at a time. slint_skia is skipped — its generated bindings carry ~80 pre-existing warnings (stubs, CI-only).
-      run: dart run melos exec --concurrency 1 --fail-fast --ignore slint_skia -- dart analyze .
+      description: dart analyze, one package at a time (slint_skia's unused ffigen bindings are excluded in its analysis_options.yaml).
+      run: dart run melos exec --concurrency 1 --fail-fast -- dart analyze .
 
     format:
-      description: Check Dart formatting across the workspace (no writes). Not yet part of `check` — the tree predates Dart 3.13's formatter style; run `format:fix` once to adopt it.
+      description: Check Dart formatting across the workspace (no writes).
       run: dart format --output=none --set-exit-if-changed .
 
     format:fix:
@@ -52,7 +52,7 @@ melos:
       run: dart run melos exec --concurrency 1 --fail-fast --no-flutter --dir-exists test -- dart test
 
     test:flutter:
-      description: flutter test in Flutter packages with tests. todo_skia is excluded — its hook builds all of Skia (CI-only).
+      description: flutter test in Flutter packages with tests. todo_skia is excluded — its hook compiles all of Skia (not in default CI).
       run: dart run melos exec --concurrency 1 --fail-fast --flutter --dir-exists test --ignore todo_skia_example -- flutter test
 
     codegen:
@@ -75,6 +75,10 @@ melos:
       description: clippy every crate except slint-skia-ffi (building it builds all of Skia).
       run: cargo clippy --workspace --exclude slint-skia-ffi --all-targets
 
+    rust:test:
+      description: cargo test every crate except slint-skia-ffi (building it builds all of Skia).
+      run: cargo test --workspace --exclude slint-skia-ffi
+
     check:
-      description: What CI should run — analysis, Rust formatting and lints, tests. Add `format` once the tree is formatted.
-      run: dart run melos run analyze && cargo fmt --all --check && dart run melos run rust:clippy && dart run melos run test
+      description: What CI should run — analysis, Dart+Rust formatting, lints and tests.
+      run: dart run melos run analyze && dart run melos run format && cargo fmt --all --check && dart run melos run rust:clippy && dart run melos run rust:test && dart run melos run test

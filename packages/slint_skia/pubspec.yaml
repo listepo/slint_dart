@@ -1,10 +1,16 @@
 name: slint_skia
-description: Slint runtime for Flutter via Rust FFI — slint-interpreter + i-slint-renderer-skia (GPU) rendered into a Flutter external texture. Bindings generated with cbindgen and ffigen.
+description: "Experimental GPU backend for Slint on Flutter over Rust FFI: slint-interpreter plus the Skia renderer, aimed at a Flutter external texture."
 version: 0.0.1
 license: Apache-2.0
 homepage: https://github.com/listepo/slint_dart
 repository: https://github.com/listepo/slint_dart/tree/main/packages/slint_skia
 issue_tracker: https://github.com/listepo/slint_dart/issues
+topics:
+  - slint
+  - skia
+  - gpu
+  - ffi
+  - rust
 resolution: workspace
 
 environment:
@@ -23,4 +29,23 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   ffigen: ^21.0.0
+
+# The platform half of the GPU path: each plugin registers the Flutter
+# texture slint-skia-ffi renders into (see lib/src/skia_engine.dart).
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.slint.slint_skia
+        pluginClass: SlintSkiaPlugin
+      ios:
+        pluginClass: SlintSkiaPlugin
+        sharedDarwinSource: true
+      macos:
+        pluginClass: SlintSkiaPlugin
+        sharedDarwinSource: true
+      linux:
+        pluginClass: SlintSkiaPlugin
+      windows:
+        pluginClass: SlintSkiaPluginCApi
 

@@ -39,18 +39,30 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
   final slintFiles = !uiDir.existsSync()
       ? <File>[]
       : (uiDir
-          .listSync(recursive: true, followLinks: false)
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.slint'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path)));
+            .listSync(recursive: true, followLinks: false)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.slint'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path)));
   if (slintFiles.isEmpty) return;
 
   final packageConfig = findPackageConfig(input);
   final compilerRoot = packageRootFromConfig(packageConfig, 'slint_compiler');
   final generatorRoot = packageRootFromConfig(packageConfig, 'slint_generator');
-  final slintCoreCrate =
-      packageRootFromConfig(packageConfig, 'slint').resolve('rust/');
+  final slintCoreCrate = packageRootFromConfig(
+    packageConfig,
+    'slint',
+  ).resolve('rust/');
+  // Cargo reaches the crates through the staged workspace, which works the
+  // same from this repo and from the pub cache (see stageCargoWorkspace).
+  final introspectManifest = stagedCargoManifest(
+    packageConfig,
+    'slint_generator',
+  );
+  final stagedCoreCrate = stagedCargoManifest(
+    packageConfig,
+    'slint',
+  ).resolve('./');
 
   final files = <SlintAotFile>[];
   final assetNames = <String>[];
@@ -69,25 +81,26 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
     }
     final schema = await introspectSlint(
       f.path,
-      introspectManifest: generatorRoot.resolve('rust/Cargo.toml'),
+      introspectManifest: introspectManifest,
     );
-    files.add(SlintAotFile(
-      stem: stem,
-      source: f.readAsStringSync(),
-      schema: schema,
-    ));
-    assetNames.add('$stemBase.aot.g.dart'.replaceAll(Platform.pathSeparator, '/'));
+    files.add(SlintAotFile(stem: stem, path: f.absolute.path, schema: schema));
+    assetNames.add(
+      '$stemBase.aot.g.dart'.replaceAll(Platform.pathSeparator, '/'),
+    );
   }
 
-  final crateDir =
-      Directory.fromUri(input.outputDirectoryShared.resolve('slint_aot/'));
+  final crateDir = Directory.fromUri(
+    input.outputDirectoryShared.resolve('slint_aot/'),
+  );
   emitAotCrate(
     crateDir,
     files: files,
-    slintCoreCratePath: slintCoreCrate.toFilePath(),
-    // Present inside this repo (the Cargo workspace root); absent for a pub
-    // consumer, which then resolves afresh as before.
-    lockfile: File.fromUri(compilerRoot.resolve('../../Cargo.lock')),
+    slintCoreCratePath: stagedCoreCrate.toFilePath(),
+    // The staged workspace's lock: the tree the introspect tool was just
+    // built with, seeded from the repo's when there is one.
+    lockfile: File.fromUri(
+      stageCargoWorkspace(packageConfig).resolve('Cargo.lock'),
+    ),
   );
 
   final build = await runCargoBuild(
@@ -104,7 +117,16 @@ Future<void> buildSlintAot(BuildInput input, BuildOutputBuilder output) async {
       input.packageRoot.resolve('ui/'),
       // Regenerate when the glue generator or the introspect tool change.
       compilerRoot.resolve('lib/'),
+      generatorRoot.resolve('lib/'),
       generatorRoot.resolve('rust/'),
+      // A path dependency of the generated crate.
+      slintCoreCrate,
+    ],
+    // What the files import or reference from outside ui/ — a UI shared with
+    // another package, say.
+    extraDependencies: [
+      for (final f in files)
+        for (final dep in f.schema.files) Uri.file(dep),
     ],
   );
 

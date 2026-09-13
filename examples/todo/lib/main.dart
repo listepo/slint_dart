@@ -18,20 +18,7 @@ void main() {
   // Per component, on purpose: UnusedGadget is never registered, so it is
   // tree-shaken out of the release build.
   TodoApp.register();
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Slint Todo',
-      theme: ThemeData(useMaterial3: true),
-      home: const TodoPage(),
-    );
-  }
+  runApp(const TodoExampleApp(title: 'Slint Todo', home: TodoPage()));
 }
 
 class TodoPage extends StatefulWidget {
@@ -41,12 +28,11 @@ class TodoPage extends StatefulWidget {
   State<TodoPage> createState() => _TodoPageState();
 }
 
-class _TodoPageState extends State<TodoPage> {
+// The list, its callbacks and the page chrome live in examples/todo_shared;
+// this page loads the component and maps entries to the generated TodoItem
+// at the Slint boundary.
+class _TodoPageState extends State<TodoPage> with TodoPageStateMixin {
   TodoApp? _app;
-  Object? _loadError;
-  // The list itself lives in the shared TodoStore (examples/todo_shared);
-  // this page only maps it to the generated TodoItem at the Slint boundary.
-  final TodoStore _store = TodoStore();
 
   @override
   void initState() {
@@ -56,34 +42,20 @@ class _TodoPageState extends State<TodoPage> {
     // ready before the first build, with no loading state to render.
     try {
       _app = SlintComponent.load('ui/todo.slint')
-        ..onAddTodo(_onAddTodo)
-        ..onToggleTodo(_onToggleTodo)
-        ..onRemoveDone(_onRemoveDone);
-      _sync();
+        ..onAddTodo(addTodo)
+        ..onToggleTodo(toggleTodo)
+        ..onRemoveDone(removeDone);
+      syncTodos();
     } catch (e) {
-      _loadError = e;
+      loadError = e;
     }
   }
 
-  void _sync() {
-    _app!.todoModel = [
-      for (final e in _store.items)
-        TodoItem(title: e.title, checked: e.checked),
-    ];
-    setState(() {});
-  }
-
-  void _onAddTodo(String title) {
-    if (_store.addTodo(title)) _sync();
-  }
-
-  void _onToggleTodo(int index, bool checked) {
-    if (_store.toggleTodo(index, checked)) _sync();
-  }
-
-  void _onRemoveDone() {
-    _store.removeDone();
-    _sync();
+  @override
+  void pushTodos(List<TodoEntry> items) {
+    _app!.todoModel.replaceAll([
+      for (final e in items) TodoItem(title: e.title, checked: e.checked),
+    ]);
   }
 
   @override
@@ -95,15 +67,8 @@ class _TodoPageState extends State<TodoPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final target = _app?.renderTarget;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_store.countTitle('${TodoApp.defaultFactory.runtimeType}')),
-      ),
-      body: target == null
-          ? Center(child: Text('$_loadError'))
-          : SlintView(target: target),
-    );
-  }
+  Widget build(BuildContext context) => buildTodoScaffold(
+    backend: '${TodoApp.defaultFactory.runtimeType}',
+    body: () => SlintView(target: _app!.renderTarget),
+  );
 }

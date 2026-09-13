@@ -3952,6 +3952,7 @@ name = "slint-dart-interpreter"
 version = "0.1.0"
 dependencies = [
  "i-slint-backend-testing",
+ "i-slint-compiler",
  "serde_json",
  "slint",
  "slint-interpreter",
@@ -3975,6 +3976,7 @@ dependencies = [
  "itertools 0.14.0",
  "lyon_path",
  "once_cell",
+ "serde_json",
  "smol_str 0.3.6",
  "unicode-segmentation",
  "vtable",
@@ -4017,8 +4019,11 @@ version = "0.1.0"
 dependencies = [
  "i-slint-core",
  "i-slint-renderer-skia",
+ "raw-window-handle",
  "slint",
+ "slint-dart-core",
  "slint-dart-interpreter",
+ "windows",
 ]
 
 [[package]]
@@ -4026,7 +4031,7 @@ name = "slint-testing-ffi"
 version = "0.1.0"
 dependencies = [
  "i-slint-backend-testing",
- "serde_json",
+ "slint-dart-core",
  "slint-dart-interpreter",
 ]
 

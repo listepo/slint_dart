@@ -15,11 +15,11 @@ default:
 bootstrap:
     {{dart}} pub get
 
-# dart analyze, per package (slint_skia skipped — known bindings warnings).
+# dart analyze, per package.
 analyze:
     {{melos}} analyze
 
-# Dart formatting check (no writes). Fails until `just format-fix` has been adopted.
+# Dart formatting check (no writes).
 format:
     {{melos}} format
 
@@ -35,7 +35,7 @@ test:
 test-dart:
     {{melos}} test:dart
 
-# flutter test in slint, slint_patrol, examples/todo (todo_skia is CI-only).
+# flutter test in slint, slint_patrol, examples/todo (todo_skia excluded — compiles Skia).
 test-flutter:
     {{melos}} test:flutter
 
@@ -61,7 +61,7 @@ check:
     {{melos}} check
 
 # Regenerate an FFI package's C header (cbindgen) and Dart bindings (ffigen) after a C ABI change.
-# pkg: slint_interpreter | slint_testing | slint_skia (ffigen for slint_skia is CI-only).
+# pkg: slint_interpreter | slint_testing | slint_skia
 bindings pkg:
     cd packages/{{pkg}}/rust && cbindgen --output include/{{pkg}}_ffi.h
     cd packages/{{pkg}} && {{dart}} run ffigen --config ffigen.yaml

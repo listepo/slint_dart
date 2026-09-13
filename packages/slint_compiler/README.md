@@ -9,6 +9,4 @@ dependencies:
   slint_compiler: ^0.0.1
 ```
 
-**Full docs:** see the docs site (`just docs-serve`) — package page under
-Packages (pipeline, tree-shaking, size breakdown), and the
-[Backends](../../site/content/guides/backends.md) guide.
+**Full docs:** [slint_compiler package page](https://listepo.github.io/slint_dart/packages/slint_compiler/) (pipeline, tree-shaking, size breakdown), [Backends guide](https://listepo.github.io/slint_dart/guides/backends/).

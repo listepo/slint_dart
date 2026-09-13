@@ -4,7 +4,7 @@
 // those callers, and every dereference is already an explicit unsafe block.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::panic::catch_unwind;
 use std::ptr;
@@ -15,13 +15,21 @@ use slint::platform::software_renderer::{
 };
 use slint::ComponentHandle;
 use slint::PhysicalSize;
-use slint_dart_interpreter::{describe_all, Definition, Engine, Instance};
+use slint_dart_interpreter::{describe_all, Definition, Engine, Instance, JsonCallback};
 
 thread_local! {
     static LAST_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
     // Window created by the platform for the most recent instantiation.
     // ponytail: single-slot handoff; registry when multiple views needed
     static NEXT_WINDOW: RefCell<Option<Rc<MinimalSoftwareWindow>>> = const { RefCell::new(None) };
+    // Return value of the host callback running right now, handed over by
+    // slint_interpreter_callback_set_result. Cleared before each call and
+    // taken after it, so a nested callback cannot leak its result outward.
+    static CALLBACK_RESULT: RefCell<Option<String>> = const { RefCell::new(None) };
+    // Slint takes the handler out for the duration of a call; registering a
+    // new one while it runs panics. Host code may replace a handler from
+    // inside its own callback, so defer those until the call returns.
+    static HOST_CALLBACK_DEPTH: Cell<u32> = const { Cell::new(0) };
 }
 
 fn set_error(msg: String) {
@@ -231,6 +239,60 @@ pub type SlintInterpreterCallbackFn =
 struct InstanceHandle {
     core: Instance,
     window: Rc<MinimalSoftwareWindow>,
+    pending_callbacks: RefCell<Vec<(String, JsonCallback)>>,
+}
+
+impl InstanceHandle {
+    fn flush_pending_callbacks(&self) {
+        let pending: Vec<(String, JsonCallback)> =
+            self.pending_callbacks.borrow_mut().drain(..).collect();
+        for (name, callback) in pending {
+            if let Err(e) = self.core.set_callback_json(&name, callback) {
+                set_error(e);
+                return;
+            }
+        }
+    }
+
+    fn register_callback(
+        &self,
+        name: &str,
+        cb: SlintInterpreterCallbackFn,
+        user_data: *mut c_void,
+    ) -> bool {
+        let callback_box = host_callback(cb, user_data);
+        if HOST_CALLBACK_DEPTH.with(|d| d.get()) > 0 {
+            self.pending_callbacks
+                .borrow_mut()
+                .push((name.to_string(), callback_box));
+            return true;
+        }
+        match self.core.set_callback_json(name, callback_box) {
+            Ok(()) => true,
+            Err(e) => {
+                set_error(e);
+                false
+            }
+        }
+    }
+}
+
+fn host_callback(cb: SlintInterpreterCallbackFn, user_data: *mut c_void) -> JsonCallback {
+    Box::new(move |json: &str| {
+        HOST_CALLBACK_DEPTH.with(|d| d.set(d.get() + 1));
+        let result = (|| {
+            let cstr = CString::new(json).ok()?;
+            CALLBACK_RESULT.with(|r| r.borrow_mut().take());
+            cb(user_data, cstr.as_ptr());
+            CALLBACK_RESULT.with(|r| r.borrow_mut().take())
+        })();
+        HOST_CALLBACK_DEPTH.with(|d| d.set(d.get() - 1));
+        result
+    })
+}
+
+fn finish_host_work(handle: &InstanceHandle) {
+    handle.flush_pending_callbacks();
 }
 
 #[no_mangle]
@@ -263,7 +325,7 @@ pub extern "C" fn slint_interpreter_instantiate(
 
         // show() forces window creation through FlutterSoftwarePlatform,
         // which parks the MinimalSoftwareWindow in NEXT_WINDOW.
-        if let Err(e) = instance.0.show() {
+        if let Err(e) = instance.inner.show() {
             set_error(format!("{:?}", e));
             return ptr::null_mut();
         }
@@ -278,6 +340,7 @@ pub extern "C" fn slint_interpreter_instantiate(
         let handle = InstanceHandle {
             core: instance,
             window,
+            pending_callbacks: RefCell::new(Vec::new()),
         };
 
         Box::into_raw(Box::new(handle)) as *mut c_void
@@ -297,7 +360,12 @@ pub extern "C" fn slint_interpreter_instance_free(instance: SlintInterpreterInst
     }
     if !instance.0.is_null() {
         let _ = catch_unwind(|| {
-            drop(unsafe { Box::from_raw(instance.0 as *mut InstanceHandle) });
+            let handle = unsafe { Box::from_raw(instance.0 as *mut InstanceHandle) };
+            // show() parked a strong reference to the component in its
+            // window; without hide() the component, its timers and its
+            // callbacks outlive the free.
+            let _ = handle.core.inner.hide();
+            drop(handle);
         });
     }
 }
@@ -357,6 +425,7 @@ pub extern "C" fn slint_interpreter_instance_render(
             drawn = true;
         });
 
+        finish_host_work(handle);
         drawn
     }) {
         Ok(result) => result,
@@ -387,6 +456,7 @@ pub extern "C" fn slint_interpreter_instance_pointer_event(
         if let Some(event) = slint_dart_core::events::pointer_event(kind, x, y, button, dx, dy) {
             let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
             handle.window.dispatch_event(event);
+            finish_host_work(handle);
         }
     });
 }
@@ -408,6 +478,7 @@ pub extern "C" fn slint_interpreter_instance_key_event(
             let event = slint_dart_core::events::key_event(text_str, pressed);
             let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
             handle.window.dispatch_event(event);
+            finish_host_work(handle);
         }
     });
 }
@@ -501,7 +572,7 @@ pub extern "C" fn slint_interpreter_instance_get_property(
         };
 
         let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
-        match handle.core.get_property_json(name_str) {
+        let result = match handle.core.get_property_json(name_str) {
             Ok(json) => match CString::new(json) {
                 Ok(cstr) => cstr.into_raw(),
                 Err(_) => {
@@ -513,7 +584,9 @@ pub extern "C" fn slint_interpreter_instance_get_property(
                 set_error(e);
                 ptr::null_mut()
             }
-        }
+        };
+        finish_host_work(handle);
+        result
     }) {
         Ok(ptr) => ptr,
         Err(_) => {
@@ -553,13 +626,17 @@ pub extern "C" fn slint_interpreter_instance_set_property(
         };
 
         let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
-        match handle.core.set_property_json(name_str, json_str) {
+        let ok = match handle.core.set_property_json(name_str, json_str) {
             Ok(()) => true,
             Err(e) => {
                 set_error(e);
                 false
             }
+        };
+        if ok {
+            finish_host_work(handle);
         }
+        ok
     }) {
         Ok(result) => result,
         Err(_) => {
@@ -599,7 +676,7 @@ pub extern "C" fn slint_interpreter_instance_invoke(
         };
 
         let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
-        match handle.core.invoke_json(name_str, args_str) {
+        let result = match handle.core.invoke_json(name_str, args_str) {
             Ok(result) => match CString::new(result) {
                 Ok(cstr) => cstr.into_raw(),
                 Err(_) => {
@@ -611,7 +688,9 @@ pub extern "C" fn slint_interpreter_instance_invoke(
                 set_error(e);
                 ptr::null_mut()
             }
-        }
+        };
+        finish_host_work(handle);
+        result
     }) {
         Ok(ptr) => ptr,
         Err(_) => {
@@ -644,21 +723,7 @@ pub extern "C" fn slint_interpreter_instance_set_callback(
             }
         };
         let handle = unsafe { &*(instance.0 as *const InstanceHandle) };
-
-        // Capture user_data and callback in closure; engine is single-threaded
-        let callback_box: Box<dyn Fn(&str) + 'static> = Box::new(move |json: &str| {
-            if let Ok(cstr) = CString::new(json) {
-                cb(user_data, cstr.as_ptr());
-            }
-        });
-
-        match handle.core.set_callback_json(name_str, callback_box) {
-            Ok(_) => true,
-            Err(e) => {
-                set_error(e);
-                false
-            }
-        }
+        handle.register_callback(name_str, cb, user_data)
     }) {
         Ok(result) => result,
         Err(_) => {
@@ -666,6 +731,27 @@ pub extern "C" fn slint_interpreter_instance_set_callback(
             false
         }
     }
+}
+
+/// Sets the return value of the host callback that is running right now, as
+/// JSON. Only meaningful from inside a [SlintInterpreterCallbackFn]; the
+/// string is copied, so the caller keeps ownership. Null clears it.
+#[no_mangle]
+pub extern "C" fn slint_interpreter_callback_set_result(json: *const c_char) {
+    if !on_owner_thread() {
+        return;
+    }
+    let _ = catch_unwind(|| {
+        let value = if json.is_null() {
+            None
+        } else {
+            unsafe { CStr::from_ptr(json) }
+                .to_str()
+                .ok()
+                .map(str::to_string)
+        };
+        CALLBACK_RESULT.with(|r| *r.borrow_mut() = value);
+    });
 }
 
 // === String memory management ===
@@ -687,5 +773,82 @@ pub extern "C" fn slint_interpreter_last_error() -> *mut c_char {
             Err(_) => ptr::null_mut(),
         },
         None => ptr::null_mut(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    extern "C" fn doubles(_user_data: *mut c_void, args_json: *const c_char) {
+        let args = unsafe { CStr::from_ptr(args_json) }.to_str().unwrap();
+        let n: i64 = args.trim_matches(['[', ']']).parse().unwrap();
+        let result = CString::new((n * 2).to_string()).unwrap();
+        slint_interpreter_callback_set_result(result.as_ptr());
+    }
+
+    fn take_string(p: *mut c_char) -> String {
+        assert!(!p.is_null(), "{:?}", get_error());
+        let s = unsafe { CStr::from_ptr(p) }.to_str().unwrap().to_string();
+        slint_interpreter_string_free(p);
+        s
+    }
+
+    // One test: every entry point pins the thread that first calls in, and
+    // libtest runs each test on a thread of its own.
+    #[test]
+    fn callback_results_and_free() {
+        let engine = slint_interpreter_engine_new();
+        let src = CString::new(
+            "export component T inherits Window {
+                pure callback compute(int) -> int;
+                out property <int> shown: compute(21);
+            }",
+        )
+        .unwrap();
+        let path = CString::new("t.slint").unwrap();
+        let defs = slint_interpreter_engine_compile(
+            SlintInterpreterEngine(engine.0),
+            src.as_ptr(),
+            path.as_ptr(),
+        );
+        assert!(!defs.0.is_null(), "{:?}", get_error());
+        let inst = slint_interpreter_instantiate(SlintInterpreterDefinitionList(defs.0), 0);
+        assert!(!inst.0.is_null(), "{:?}", get_error());
+
+        let name = CString::new("compute").unwrap();
+        assert!(slint_interpreter_instance_set_callback(
+            SlintInterpreterInstance(inst.0),
+            name.as_ptr(),
+            doubles,
+            ptr::null_mut(),
+        ));
+        // A host callback's return value reaches Slint: through invoke, and
+        // through a binding that calls it.
+        let args = CString::new("[5]").unwrap();
+        let invoked = slint_interpreter_instance_invoke(
+            SlintInterpreterInstance(inst.0),
+            name.as_ptr(),
+            args.as_ptr(),
+        );
+        assert_eq!(take_string(invoked), "10");
+        let shown = CString::new("shown").unwrap();
+        let value = slint_interpreter_instance_get_property(
+            SlintInterpreterInstance(inst.0),
+            shown.as_ptr(),
+        );
+        assert_eq!(take_string(value), "42");
+
+        // Freeing must release the component, not leave it owned by its
+        // window (which show() gave a strong reference).
+        let weak = unsafe { &*(inst.0 as *const InstanceHandle) }
+            .core
+            .inner
+            .as_weak();
+        slint_interpreter_instance_free(inst);
+        assert!(weak.upgrade().is_none(), "component outlived its free");
+
+        slint_interpreter_definitions_free(defs);
+        slint_interpreter_engine_free(engine);
     }
 }

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -38,7 +39,12 @@ class _SlintViewState extends State<SlintView>
   final FocusNode _focusNode = FocusNode();
   ui.Image? _image;
   bool _decoding = false;
+  Uint8List? _pixelScratch;
   double _dpr = 1;
+
+  /// Physical size last passed to [SlintSoftwareRenderTarget.resize].
+  int _appliedWidth = 0;
+  int _appliedHeight = 0;
 
   /// Bumped whenever the render target changes, so an in-flight decode from
   /// the old target cannot overwrite the new target's image when it lands.
@@ -75,12 +81,27 @@ class _SlintViewState extends State<SlintView>
     }
   }
 
+  void _applyResize(int width, int height) {
+    if (width <= 0 || height <= 0) return;
+    if (width == _appliedWidth && height == _appliedHeight) return;
+    widget.target.resize(width, height);
+    _appliedWidth = width;
+    _appliedHeight = height;
+  }
+
+  void _onDprChanged() {
+    _generation++;
+    _decoding = false;
+    _image?.dispose();
+    _image = null;
+    _appliedWidth = 0;
+    _appliedHeight = 0;
+  }
+
   void _onTick(Duration elapsed) {
     if (_decoding) return;
     final target = widget.target;
-    if (_wantedWidth > 0 && _wantedHeight > 0) {
-      target.resize(_wantedWidth, _wantedHeight);
-    }
+    _applyResize(_wantedWidth, _wantedHeight);
     if (target.render() || _image == null) {
       _decodeImage();
     }
@@ -95,30 +116,28 @@ class _SlintViewState extends State<SlintView>
 
     _decoding = true;
     try {
-      // Slint's software renderer produces premultiplied RGBA and that is
-      // exactly what Flutter's rgba8888 expects ("Premultiplied alpha is
-      // used" — dart:ui PixelFormat), so the frame goes through untouched.
-      // decodeImageFromPixels copies the bytes itself.
-      ui.decodeImageFromPixels(
-        target.pixels,
-        w,
-        h,
-        ui.PixelFormat.rgba8888,
-        (image) {
-          // The target may have changed while the decode was in flight:
-          // a stale frame must not replace the new target's image.
-          if (!mounted || generation != _generation) {
-            image.dispose();
-            if (generation == _generation) _decoding = false;
-            return;
-          }
-          _image?.dispose();
-          setState(() {
-            _image = image;
-            _decoding = false;
-          });
-        },
-      );
+      // Copy into a reused scratch so a concurrent resize cannot free the
+      // native buffer while decodeImageFromPixels is still reading it.
+      final needed = w * h * 4;
+      final scratch = _pixelScratch;
+      final pixels = (scratch != null && scratch.length == needed)
+          ? scratch
+          : (_pixelScratch = Uint8List(needed));
+      pixels.setRange(0, needed, target.pixels);
+      ui.decodeImageFromPixels(pixels, w, h, ui.PixelFormat.rgba8888, (image) {
+        // The target may have changed while the decode was in flight:
+        // a stale frame must not replace the new target's image.
+        if (!mounted || generation != _generation) {
+          image.dispose();
+          if (generation == _generation) _decoding = false;
+          return;
+        }
+        _image?.dispose();
+        setState(() {
+          _image = image;
+          _decoding = false;
+        });
+      });
     } catch (_) {
       _decoding = false;
       rethrow;
@@ -138,7 +157,13 @@ class _SlintViewState extends State<SlintView>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        _dpr = MediaQuery.devicePixelRatioOf(context);
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        var dprChanged = false;
+        if (dpr != _dpr) {
+          _dpr = dpr;
+          dprChanged = true;
+          _onDprChanged();
+        }
         // Unbounded constraints (a Row, a scrollable, an unconstrained box)
         // report infinite sizes; resizing the native buffer to infinity
         // would throw in toInt(). Report 0 instead — the tick skips
@@ -151,6 +176,12 @@ class _SlintViewState extends State<SlintView>
         _wantedHeight = logicalH.isFinite
             ? (logicalH * _dpr).toInt().clamp(0, 1 << 30)
             : 0;
+
+        if (dprChanged) {
+          // A DPR-only change does not always schedule another tick before input
+          // arrives; resize immediately so pointer coords and the buffer agree.
+          _applyResize(_wantedWidth, _wantedHeight);
+        }
 
         return Focus(
           focusNode: _focusNode,
@@ -165,8 +196,11 @@ class _SlintViewState extends State<SlintView>
                 // opens it.
                 if (_focusNode.hasFocus) _openConnection();
                 _pressedButton = _buttonOf(event.buttons);
-                _sendPointer(SlintPointerEventKind.down, event,
-                    button: _pressedButton);
+                _sendPointer(
+                  SlintPointerEventKind.down,
+                  event,
+                  button: _pressedButton,
+                );
               },
               onPointerMove: (event) =>
                   _sendPointer(SlintPointerEventKind.move, event),
@@ -234,9 +268,13 @@ class _SlintViewState extends State<SlintView>
     }
   }
 
+  void _dispatchKey(String text, {required bool pressed}) {
+    widget.target.dispatchKeyEvent(SlintKeyEvent(text: text, pressed: pressed));
+  }
+
   void _sendKey(String text) {
-    widget.target.dispatchKeyEvent(SlintKeyEvent(text: text, pressed: true));
-    widget.target.dispatchKeyEvent(SlintKeyEvent(text: text, pressed: false));
+    _dispatchKey(text, pressed: true);
+    _dispatchKey(text, pressed: false);
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -247,6 +285,20 @@ class _SlintViewState extends State<SlintView>
     // soft keyboard does. The raw path below is the fallback for a
     // connection the platform closed.
     if (_connection != null) return KeyEventResult.ignored;
+
+    final named = slintKeyText(event.logicalKey);
+    if (named != null) {
+      if (event is KeyDownEvent || event is KeyRepeatEvent) {
+        _dispatchKey(named, pressed: true);
+        return KeyEventResult.handled;
+      }
+      if (event is KeyUpEvent) {
+        _dispatchKey(named, pressed: false);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
       if (event.character != null && event.character!.isNotEmpty) {
         _sendKey(event.character!);
@@ -260,7 +312,6 @@ class _SlintViewState extends State<SlintView>
         _sendKey('\n');
         return KeyEventResult.handled;
       }
-      // ponytail: arrows/modifiers unmapped; Slint PUA key codes later
     }
     return KeyEventResult.ignored;
   }
@@ -356,12 +407,45 @@ class _SlintViewState extends State<SlintView>
   }
 }
 
-/// Slint's key code for Backspace (`i-slint-common` key_codes).
+/// Slint named-key codes (`i-slint-common` key_codes, mirrored in
+/// `slint-dart-core`'s `events::key_codes`).
 const _backspace = '\u0008';
+const _tab = '\u0009';
+const _escape = '\u001b';
+const _shift = '\u0010';
+const _control = '\u0011';
+const _alt = '\u0012';
+const _shiftRight = '\u0015';
+const _controlRight = '\u0016';
+const _meta = '\u0017';
+const _metaRight = '\u0018';
+const _upArrow = '\uF700';
+const _downArrow = '\uF701';
+const _leftArrow = '\uF702';
+const _rightArrow = '\uF703';
 
-/// What the platform may delete when the mirror is otherwise empty:
-/// backspace on an empty field is a no-op on iOS, which would make text
-/// already in a Slint `LineEdit` undeletable.
+/// Maps a Flutter [LogicalKeyboardKey] to Slint's key-event `text` for named
+/// keys (arrows, tab, escape, modifiers). Returns null for keys Slint expects
+/// as plain characters (letters, digits, backspace, enter).
+@visibleForTesting
+String? slintKeyText(LogicalKeyboardKey key) {
+  if (key == LogicalKeyboardKey.tab) return _tab;
+  if (key == LogicalKeyboardKey.escape) return _escape;
+  if (key == LogicalKeyboardKey.arrowUp) return _upArrow;
+  if (key == LogicalKeyboardKey.arrowDown) return _downArrow;
+  if (key == LogicalKeyboardKey.arrowLeft) return _leftArrow;
+  if (key == LogicalKeyboardKey.arrowRight) return _rightArrow;
+  if (key == LogicalKeyboardKey.shiftLeft) return _shift;
+  if (key == LogicalKeyboardKey.shiftRight) return _shiftRight;
+  if (key == LogicalKeyboardKey.controlLeft) return _control;
+  if (key == LogicalKeyboardKey.controlRight) return _controlRight;
+  if (key == LogicalKeyboardKey.altLeft) return _alt;
+  if (key == LogicalKeyboardKey.altRight) return _alt;
+  if (key == LogicalKeyboardKey.metaLeft) return _meta;
+  if (key == LogicalKeyboardKey.metaRight) return _metaRight;
+  return null;
+}
+
 const _pad = '\u200B\u200B\u200B\u200B\u200B\u200B\u200B\u200B';
 const _padValue = TextEditingValue(
   text: _pad,

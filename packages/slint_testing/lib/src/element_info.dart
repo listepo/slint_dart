@@ -28,28 +28,28 @@ class SlintElementInfo {
   });
 
   SlintElementInfo.fromJson(Map<String, Object?> json)
-      : index = json['index'] as int,
-        id = json['id'] as String?,
-        typeName = json['typeName'] as String?,
-        role = json['role'] as String?,
-        label = json['label'] as String?,
-        value = json['value'] as String?,
-        placeholder = json['placeholder'] as String?,
-        description = json['description'] as String?,
-        checked = json['checked'] as bool?,
-        checkable = json['checkable'] as bool?,
-        enabled = json['enabled'] as bool?,
-        itemIndex = json['itemIndex'] as int?,
-        itemCount = json['itemCount'] as int?,
-        x = (json['x'] as num).toDouble(),
-        y = (json['y'] as num).toDouble(),
-        width = (json['width'] as num).toDouble(),
-        height = (json['height'] as num).toDouble();
+    : index = json['index'] as int,
+      id = json['id'] as String?,
+      typeName = json['typeName'] as String?,
+      role = json['role'] as String?,
+      label = json['label'] as String?,
+      value = json['value'] as String?,
+      placeholder = json['placeholder'] as String?,
+      description = json['description'] as String?,
+      checked = json['checked'] as bool?,
+      checkable = json['checkable'] as bool?,
+      enabled = json['enabled'] as bool?,
+      itemIndex = json['itemIndex'] as int?,
+      itemCount = json['itemCount'] as int?,
+      x = (json['x'] as num).toDouble(),
+      y = (json['y'] as num).toDouble(),
+      width = (json['width'] as num).toDouble(),
+      height = (json['height'] as num).toDouble();
 
   /// Position in the query that produced this element.
   final int index;
 
-  /// Element id qualified by its component, e.g. `TodoApp::edit`.
+  /// Element id qualified by its component, e.g. `TodoView::edit`.
   final String? id;
 
   /// The element's type, e.g. `Button` or `LineEdit`.

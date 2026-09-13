@@ -8,12 +8,12 @@ plain `dart test`. Read the root `AGENTS.md` first.
 
 | Path | Role |
 |---|---|
-| `rust/` | `slint-testing-ffi`: installs the testing platform (`init_no_event_loop`), compiles/instantiates through `slint-dart-interpreter`, exposes element queries, default-action click, set-value, `elapse`, and the callback log over `slint_testing_*`. |
-| `lib/src/testing.dart` | `SlintTestApp` (`compile`, `findBy*`, `record`/`takeCalls`, `elapse`), `SlintElement`, `SlintCall`. |
+| `rust/` | `slint-testing-ffi`: installs the testing platform (`init_no_event_loop`), compiles/instantiates through `slint-dart-interpreter`, exposes element queries, default-action click, set-value, `elapse`, properties, and host callbacks (`slint_testing_app_set_callback` + `slint_testing_callback_set_result`) over `slint_testing_*`. |
+| `lib/src/testing.dart` | `SlintTestApp` (`compile`, `findBy*`, `elapse`; implements `SlintComponent`), `SlintElement`. |
 | `lib/src/element_info.dart` | `SlintElementInfo` — the element model this package **owns** and `slint_patrol` reuses. |
 | `lib/src/bindings.g.dart` | ffigen output. Generated — never hand-edit. |
-| `hook/build.dart` | Builds the crate via `slint_build`; depends on `rust/` and `../slint_interpreter/interpreter/`. |
-| `test/slint_testing_test.dart` | Its own tests, against an inline `.slint`. |
+| `hook/build.dart` | Builds the crate via `slint_build`; depends on `rust/` and `slint_build`'s `interpreter/` (the shared `slint-dart-interpreter` crate), found through the package config. |
+| `test/slint_testing_test.dart` | Its own tests, against an inline `.slint`, by Slint name: that is the layer under test. App-level headless tests go through the generated wrapper instead — `examples/todo/test/todo_headless_test.dart`. |
 
 ## Commands
 
@@ -42,8 +42,22 @@ cd rust && cbindgen --output include/slint_testing_ffi.h && cd .. && mise exec -
 - **Elements belong to the query that produced them.** Each query replaces
   the snapshot; acting on an element from an earlier query throws rather
   than acting on whatever now sits at that index.
-- **Callbacks are a log, not closures.** `record(name)` replaces the
-  handler; `takeCalls()` drains. No callback trampolines in this package.
+- **`SlintTestApp` is a `SlintComponent`**, so a generated wrapper wraps it
+  (`TodoApp(ui)`) and headless app tests read and handle everything through
+  typed members — the product requirement in the root `AGENTS.md`. The
+  package depends on `slint` for the interface only (`slint_core.dart`,
+  Flutter-free), so `dart test` still runs here. Don't add by-name
+  conveniences back (the old `record`/`takeCalls` call log): app tests would
+  reach for them instead of the wrapper.
+- **Callbacks are Dart handlers behind a `NativeCallable.isolateLocal`
+  trampoline**, as in `slint_interpreter`: synchronous, the result reported
+  through `slint_testing_callback_set_result` while the handler runs, a
+  throwing handler reported to the zone. Every FFI call on the handle goes
+  through `guardNative` (`SlintNativeDisposeGuard`), so a handler may
+  dispose the app in the middle of the `click()` that fired it.
+- **`compile(files:)` writes the embedded tree with `writeSlintTree`** from
+  `slint`, the same helper `SlintInterpreterFactory` uses, so a wrapper's
+  `slintSource` + `slintFiles` compile here exactly as in debug.
 - **`component:` is required when the source exports several** — the
   compiler returns them unordered and `compile` names what it found instead
   of guessing.

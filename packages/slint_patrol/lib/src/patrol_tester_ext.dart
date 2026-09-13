@@ -8,52 +8,44 @@ import 'slint_finder.dart';
 ///
 /// ```dart
 /// await $.slint('Add').tap();
-/// await $.slintById('TodoApp::edit').enterText('buy milk');
-/// expect($.slintComponent.getProperty('count'), 1);
+/// await $.slintById('TodoView::edit').enterText('buy milk');
+/// expect(TodoApp($.slintComponent()).todoModel, isNotEmpty);
 /// ```
 extension SlintPatrolTester on PatrolTester {
   /// Finds elements by accessible label — a button's text, a checkbox's
   /// caption. The one to reach for: it matches what a user reads.
   SlintFinder slint(String label, {Finder? view}) => SlintFinder(
-        tester: this,
-        match: SlintMatch.label,
-        value: label,
-        view: view,
-      );
+    tester: this,
+    match: SlintMatch.label,
+    value: label,
+    view: view,
+  );
 
-  /// Finds elements by id, qualified by component: `TodoApp::edit`.
-  SlintFinder slintById(String id, {Finder? view}) => SlintFinder(
-        tester: this,
-        match: SlintMatch.id,
-        value: id,
-        view: view,
-      );
+  /// Finds elements by id, qualified by component: `TodoView::edit`.
+  SlintFinder slintById(String id, {Finder? view}) =>
+      SlintFinder(tester: this, match: SlintMatch.id, value: id, view: view);
 
   /// Finds elements by type, e.g. `Button` or `LineEdit`.
   SlintFinder slintByType(String typeName, {Finder? view}) => SlintFinder(
-        tester: this,
-        match: SlintMatch.type,
-        value: typeName,
-        view: view,
-      );
+    tester: this,
+    match: SlintMatch.type,
+    value: typeName,
+    view: view,
+  );
 
   /// Finds elements by accessible role, e.g. `Button`, `Checkbox`,
   /// `TextInput`.
   SlintFinder slintByRole(String role, {Finder? view}) => SlintFinder(
-        tester: this,
-        match: SlintMatch.role,
-        value: role,
-        view: view,
-      );
+    tester: this,
+    match: SlintMatch.role,
+    value: role,
+    view: view,
+  );
 
   /// Every element in the live component's accessibility tree — for exploring
   /// an unfamiliar UI, or for a custom matcher.
-  SlintFinder slintAll({Finder? view}) => SlintFinder(
-        tester: this,
-        match: SlintMatch.all,
-        value: '',
-        view: view,
-      );
+  SlintFinder slintAll({Finder? view}) =>
+      SlintFinder(tester: this, match: SlintMatch.all, value: '', view: view);
 
   /// The live component behind the [SlintView], for reading and writing
   /// properties and invoking callbacks.

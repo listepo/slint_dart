@@ -8,37 +8,40 @@ first.
 
 | Path | Crate / role |
 |---|---|
-| `interpreter/` | `slint-dart-interpreter`: renderer-agnostic wrapper over upstream `slint-interpreter` — compile, instantiate, JSON value bridge, callbacks — and `elements.rs`, the accessibility-tree query. Shared with `slint_testing` and `slint_skia`. |
-| `rust/` | `slint-interpreter-ffi`: the software renderer (`FlutterSoftwarePlatform`, `MinimalSoftwareWindow`) and the `slint_interpreter_*` C ABI. cbindgen → `rust/include/slint_interpreter_ffi.h`. |
+| `rust/` | `slint-interpreter-ffi`, over `slint-dart-interpreter` (the renderer-agnostic interpreter wrapper, in `slint_build/interpreter/`): the software renderer (`FlutterSoftwarePlatform`, `MinimalSoftwareWindow`) and the `slint_interpreter_*` C ABI. cbindgen → `rust/include/slint_interpreter_ffi.h`. |
 | `lib/src/bindings.g.dart` | ffigen output (`@Native`, asset id `package:slint_interpreter/src/bindings.g.dart`). Generated — never hand-edit. |
 | `lib/src/interpreter_engine.dart` | `SlintEngine`/`SlintComponent`/render-target implementations over the bindings; `SlintInspectableComponent.queryElements`. |
-| `lib/src/factory.dart` | `SlintInterpreterFactory(source)`: the `SlintComponentFactory` the generated wrappers construct in debug. |
-| `lib/src/loader.dart` | `useSlintInterpreter()` and the `SlintComponent.loader` hook behind `SlintComponent.loadAsset`. |
-| `hook/build.dart` | Builds `slint-interpreter-ffi` via `slint_build`; lists `rust/`, `../slint/rust/`, `interpreter/` as cache dependencies. |
+| `lib/src/factory.dart` | `SlintInterpreterFactory(source, files:)`: the `SlintComponentFactory` the generated wrappers construct in debug. |
+| `hook/build.dart` | Builds `slint-interpreter-ffi` via `slint_build` — except in a release build of an app that also depends on `slint_compiler`, where AOT ships instead. Every source file under `rust/`, `slint`'s `rust/` and `slint_build`'s `interpreter/` is a cache dependency (`sourceDependencies`). |
 
 ## Commands
 
 ```bash
+mise exec -- flutter test                               # lifecycle + the files a factory is handed
 mise exec -- dart analyze .
-cd ../../examples/todo && mise exec -- flutter test     # this backend's real tests
+cd ../../examples/todo && mise exec -- flutter test     # the backend behind a real app
 cd rust && cbindgen --output include/slint_interpreter_ffi.h && cd .. && mise exec -- dart run ffigen --config ffigen.yaml   # after a C ABI change only
 ```
 
-No tests of its own: `examples/todo`, `packages/slint_patrol`, and
-`packages/slint/test` exercise it.
+`test/` covers component lifecycle and imports/images; `examples/todo` and
+`packages/slint_patrol` exercise it end to end. These tests call the
+dynamic layer by name on purpose — it is what they test (root `AGENTS.md`,
+Product requirements).
 
 ## Invariants
 
 - **Everything is synchronous.** `compile` and `instantiate` are single
-  FFI calls returning plain values. Only `loadAsset` is async, because
-  reading the bundle is.
-- **This is the only backend that installs `SlintComponent.loader`.** It
-  installs itself when a `SlintInterpreterFactory` is constructed or via
-  `useSlintInterpreter()`. AOT has no compiler; `loadAsset` in release
-  correctly has nowhere to go.
+  FFI calls returning plain values.
+- **With `files`, the factory compiles at a real path.** It writes the
+  source and every file the wrapper embedded (`import`ed `.slint`,
+  `@image-url`) into a temp tree with `writeSlintTree`, once per factory, so
+  relative imports and images resolve. Without `files` it compiles at a
+  made-up `<Component>.slint` — fine for a self-contained source, an import
+  error otherwise. There is no loader hook and no runtime path to a `.slint`
+  no wrapper was generated from.
 - **`compile` returns components unordered** (`CompilationResult::components()`
   iterates a `HashMap`). Callers select by name; `defs.first` is a coin flip.
-- **Element queries live in `interpreter/src/elements.rs`**, not in
+- **Element queries live in `slint_build/interpreter/src/elements.rs`**, not in
   `rust/`. Both this crate and `slint-testing-ffi` call `query_elements` /
   `describe_all` so headless and live tests read identical fields. The
   crate depends on `i-slint-backend-testing` for `search_api` only and never

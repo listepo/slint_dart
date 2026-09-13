@@ -56,7 +56,9 @@ and no `SlintInterpreterFactory` (`grep -c -a`).
   tree. A pub consumer has no seed and resolves as before.
 - **`slintVersion` in `rust_glue.dart` must equal the root `Cargo.toml`
   `[workspace.dependencies]` pin.** The glue crate cannot inherit it (it is
-  outside the workspace), so bump both.
+  outside the workspace), so bump both; `test/slint_version_test.dart`
+  fails until you do — e.g. on Dependabot's Slint PR, which bumps only the
+  root file.
 - **`opt-level = "z"` is rejected**: 2.7× slower full-frame renders for
   ~1 MB/arch. Size-tune with fat LTO + `codegen-units = 1` only.
 - **`CLinker` needs `language: Language.objectiveC`** or it drops the

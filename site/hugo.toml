@@ -1,4 +1,4 @@
-baseURL = "https://example.com/slint_dart/"
+baseURL = "https://listepo.github.io/slint_dart/"
 title = "slint_dart"
 defaultContentLanguage = "en"
 enableRobotsTXT = true

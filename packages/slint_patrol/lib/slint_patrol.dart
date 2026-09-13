@@ -6,9 +6,10 @@
 /// real Flutter gestures aimed at where the element sits on screen.
 ///
 /// ```dart
-/// await $.slintById('TodoApp::edit').enterText('buy milk');
+/// await $.slintById('TodoView::edit').enterText('buy milk');
 /// await $.slint('Add').tap();
-/// expect($.slintComponent().getProperty('todo-count'), 1);
+/// // Read state through the generated wrapper, typed — never by name.
+/// expect(TodoApp($.slintComponent()).todoModel.last.title, 'buy milk');
 /// ```
 ///
 /// See [SlintPatrolTester] for the query methods and [SlintFinder] for what

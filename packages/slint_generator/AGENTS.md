@@ -28,25 +28,33 @@ cd ../../examples/todo && mise exec -- dart run build_runner build   # see the o
 ## Invariants (each has an emitter test — keep them passing)
 
 - **`defaultFactory` is chosen at codegen, on a `const`.** With both
-  backends: `_useCompiled ? aot.<x>Factory : SlintInterpreterFactory(_source)`
+  backends: `_useCompiled ? aot.<x>Factory : SlintInterpreterFactory(_source,
+  files: _files)`
   where `_useCompiled` is `const bool.fromEnvironment`-derived
   (`dart.vm.product || dart.vm.profile`). The untaken branch is dead code the
   tree shaker drops. Never make it a runtime lookup.
 - **`_source` appears exactly three times**: the declaration, the
-  `slintSource` alias, and the one `SlintInterpreterFactory(_source)`
+  `slintSource` alias, and the one `SlintInterpreterFactory(_source, ...)`
   construction. The AOT path never mentions it, so a release snapshot has no
-  `.slint` text. Don't add a `source` parameter to `instantiate`.
+  `.slint` text. Don't add a `source` parameter to `instantiate`. `_files`
+  (what the file imports and its images, from the introspect tool's
+  `files`, base64 by path relative to the entry) follows the same rule:
+  declaration, `slintFiles` alias, the factory construction.
+- **The wrapper wraps any backend's component.** `TodoApp(this.component)`
+  takes a `SlintComponent`; `renderTarget` throws `StateError` for one
+  without a software target (Skia). Never hand back the raw component as
+  the result of a load — the typed wrapper is the product (root
+  `AGENTS.md`, Product requirements).
 - **No bundle access, ever.** No `rootBundle`, no `loadString(assetPath)`.
   `load(path)` checks the path ends in `.slint`, then that it equals
-  `assetPath`, then builds through `defaultFactory`. `SlintComponent.loadAsset`
-  is the interpreter's job, not the wrapper's.
+  `assetPath`, then builds through `defaultFactory`.
 - **`register()` is per component**, never per file. A `registerTodoSlint()`
   would reference every component's AOT factory and defeat tree-shaking; a
   test asserts no such function is emitted.
 - **`assetPath`, `load`, and `register` exist only when there is a
   `defaultFactory`.** A package depending on neither backend (or only
   `slint_skia`) gets `create(factory)` and `slintSource` only — that is why
-  `examples/todo_skia` uses `TodoApp.slintSource`.
+  `examples/todo_skia` uses `TodoApp.slintSource` and `TodoApp.slintFiles`.
 - **Generated doc comments must not name `defaultFactory` or `_useCompiled`
   in prose** — the tests count identifier mentions with word-boundary
   regexes and a stray mention breaks the count.
@@ -55,13 +63,18 @@ cd ../../examples/todo && mise exec -- dart run build_runner build   # see the o
   adds is not a bug.
 - **Component definitions are selected by name**, never `defs.first`: the
   compiler returns them unordered.
+- **Wire JSON matches Slint 1.17** (`slint-interpreter` `json.rs`): color
+  `#rrggbb`/`#rrggbbaa`; brush hex or `@linear-gradient(...)` /
+  `@radial-gradient(...)`; image path string; enum `"EnumName.variant"`.
+  Generated wrappers convert through `SlintColor`/`SlintBrush` in
+  `package:slint` and generated enums with `fromSlint`/`toSlint`.
 
 ## Traps
 
 - Generated identifiers are not checked against Dart keywords; a Slint
   field named `class` produces uncompilable output. Rename in the `.slint`.
-- Supported types: numbers, string, bool, named structs, arrays.
-  Color/brush/image/enum fail generation with an error on purpose.
+- Supported types: numbers, string, bool, color, brush, image, enum, named
+  structs, arrays. Anything else fails generation with a clear error.
 - `rust/Cargo.toml` pins `i-slint-compiler = "=1.17.1"`; bumping it means
   bumping the version `slint_compiler/lib/src/rust_glue.dart` writes into the
   generated AOT crate, in the same change.

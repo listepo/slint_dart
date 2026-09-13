@@ -90,6 +90,23 @@ pub mod events {
         }
     }
 
+    /// Slint named-key codes (`i-slint-common` key_codes). Dart mirrors these
+    /// in `slint/lib/src/slint_view.dart` (`slintKeyText`).
+    pub mod key_codes {
+        pub const TAB: &str = "\u{0009}";
+        pub const ESCAPE: &str = "\u{001b}";
+        pub const SHIFT: &str = "\u{0010}";
+        pub const CONTROL: &str = "\u{0011}";
+        pub const ALT: &str = "\u{0012}";
+        pub const SHIFT_R: &str = "\u{0015}";
+        pub const CONTROL_R: &str = "\u{0016}";
+        pub const META: &str = "\u{0017}";
+        pub const META_R: &str = "\u{0018}";
+        pub const UP_ARROW: &str = "\u{F700}";
+        pub const DOWN_ARROW: &str = "\u{F701}";
+        pub const LEFT_ARROW: &str = "\u{F702}";
+        pub const RIGHT_ARROW: &str = "\u{F703}";
+    }
     /// Create a keyboard event.
     pub fn key_event(text: &str, pressed: bool) -> WindowEvent {
         if pressed {

@@ -2,8 +2,8 @@
 resolver = "2"
 members = [
     "packages/slint/rust",
+    "packages/slint_build/interpreter",
     "packages/slint_generator/rust",
-    "packages/slint_interpreter/interpreter",
     "packages/slint_interpreter/rust",
     "packages/slint_skia/rust",
     "packages/slint_testing/rust",
@@ -11,11 +11,15 @@ members = [
 
 # Shared lint levels; every member opts in with `[lints] workspace = true`.
 # Run as: cargo clippy --workspace --exclude slint-skia-ffi --all-targets
-# (slint-skia-ffi builds all of Skia — CI-only, see packages/slint_skia/README.md).
+# (slint-skia-ffi builds all of Skia — excluded from default CI, see packages/slint_skia/README.md).
 # One Slint for every crate, pinned exactly: the generated AOT crate
 # (`slint_compiler`'s rust_glue.dart) pins the same version on its own, and
 # a drift between the two means the interpreter and the compiled output
-# speak different Slint dialects. Bump all three together.
+# speak different Slint dialects. Everything from [workspace.dependencies]
+# down is repeated verbatim in the workspace the build hooks stage
+# (slint_build's lib/src/cargo_workspace.dart, which a test compares with
+# this file): a package from pub.dev has no repo root to inherit from. Bump
+# all three together.
 [workspace.dependencies]
 slint = { version = "=1.17.1", default-features = false }
 slint-interpreter = { version = "=1.17.1", default-features = false }

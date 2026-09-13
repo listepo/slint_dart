@@ -9,7 +9,8 @@ The backend-agnostic core every other package builds on. Read the root
 |---|---|
 | `lib/slint_core.dart` | Flutter-free API: `SlintEngine`, `SlintComponentDefinition`, `SlintComponent`, render targets, input events. Tests of the pure layer run under `dart test`. |
 | `lib/slint.dart` | `slint_core.dart` plus the `SlintView` widget (`lib/src/slint_view.dart`), which blits `SlintSoftwareRenderTarget.pixels` and forwards pointer/key events. |
-| `lib/src/component.dart` | `SlintComponent.load` / `register` / `unregister` (the path registry) and `loadAsset` (the interpreter-only asset path). |
+| `lib/src/component.dart` | `SlintComponent.load` / `register` / `unregister` (the path registry). |
+| `lib/src/slint_tree.dart` | `writeSlintTree`: writes an embedded source and the files it imports into a temp tree, so a runtime compiler resolves imports and images. |
 | `lib/src/events.dart` | The FFI event encoding, mirrored by `rust/src/lib.rs`. |
 | `rust/` | `slint-dart-core`: shared event mapping onto `slint::platform::WindowEvent`, and the `thread` module every FFI entry point checks first. No C ABI — the FFI crates own that. |
 
@@ -37,10 +38,15 @@ Or from the repo root: `mise exec -- dart run melos run test:flutter`.
   consulted: `ArgumentError.value(path, 'path', 'not a .slint file')`. Both
   this class and the generated wrappers make the same check with the same
   message; `examples/todo/test/todo_load_test.dart` asserts it.
-- **`loadAsset` is the one async entry point** and routes through the
-  `SlintComponent.loader` hook, which only `slint_interpreter` installs. It
-  is not a fallback for `load`: a release build has no compiler for it to
-  reach. Don't make `load` fall through to `loadAsset`.
+- **There is no untyped way in.** `load` returns the registered generated
+  wrapper and nothing else; no path compiles a `.slint` nobody registered
+  (root `AGENTS.md`, Product requirements). Don't add a
+  `loadAsset`/`loader` hook back.
+- **`writeSlintTree` keeps every file inside its temp tree.** It nests the
+  entry under as many directories as the deepest leading `..` climbs, so
+  `../../todo_shared/ui/x.slint` still lands inside, and throws
+  `ArgumentError` for a path that would leave it. The tree is never
+  deleted: one per interpreter factory per process.
 - **Ambiguity is an error, not a guess.** A path that registered several
   components needs `component:` or a type argument; the messages list what
   is registered. The compiler returns components unordered (a `HashMap`), so

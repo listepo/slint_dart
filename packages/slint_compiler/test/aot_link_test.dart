@@ -7,21 +7,20 @@ import 'package:test/test.dart';
 const _lib = 'package:todo_example/todo.aot.g.dart';
 
 Map<String, Object?> _component(String name, String newExtern) => {
-      'name': name,
-      'library': _lib,
-      'newExtern': newExtern,
-      'symbols': ['sym_${name}_new', 'sym_${name}_render'],
-    };
+  'name': name,
+  'library': _lib,
+  'newExtern': newExtern,
+  'symbols': ['sym_${name}_new', 'sym_${name}_render'],
+};
 
 /// A recording whose only content is tear-offs/calls of [externNames] in
 /// [_lib] — the shape the AOT compiler produces for the generated externs.
 Recordings _recordings(List<String> externNames) => Recordings(
-      calls: {
-        for (final name in externNames)
-          Method(name, const Library(_lib)): const [],
-      },
-      instances: const {},
-    );
+  calls: {
+    for (final name in externNames) Method(name, const Library(_lib)): const [],
+  },
+  instances: const {},
+);
 
 void main() {
   final components = [
@@ -31,17 +30,13 @@ void main() {
 
   group('usedComponentNames', () {
     test('keeps everything when the toolchain recorded nothing', () {
-      expect(
-        usedComponentNames(null, components),
-        {'TodoApp', 'SettingsPane'},
-      );
+      expect(usedComponentNames(null, components), {'TodoApp', 'SettingsPane'});
     });
 
     test('keeps only components whose _new extern was recorded', () {
-      expect(
-        usedComponentNames(_recordings(['_todoAppNew']), components),
-        {'TodoApp'},
-      );
+      expect(usedComponentNames(_recordings(['_todoAppNew']), components), {
+        'TodoApp',
+      });
     });
 
     test('ignores recordings from other libraries', () {
@@ -53,17 +48,20 @@ void main() {
         instances: const {},
       );
       // No extern of ours referenced at all → the zero-hit guard keeps all.
-      expect(usedComponentNames(other, components), {'TodoApp', 'SettingsPane'});
+      expect(usedComponentNames(other, components), {
+        'TodoApp',
+        'SettingsPane',
+      });
     });
 
     test('a recording that misses every extern keeps everything', () {
       // An app using no component would not depend on this package; zero hits
       // means the recording missed the FFI tear-offs, and dropping every
       // component on that evidence would break the app.
-      expect(
-        usedComponentNames(_recordings(['_unrelated']), components),
-        {'TodoApp', 'SettingsPane'},
-      );
+      expect(usedComponentNames(_recordings(['_unrelated']), components), {
+        'TodoApp',
+        'SettingsPane',
+      });
     });
   });
 
@@ -86,8 +84,7 @@ void main() {
     test('preserves order and duplication of libraries', () {
       // rustc: "The order and any duplication can be significant on some
       // platforms."
-      final groups =
-          partitionLinkFlags(['-lgcc_s', '-lc', '-lgcc_s', '-ldl']);
+      final groups = partitionLinkFlags(['-lgcc_s', '-lc', '-lgcc_s', '-ldl']);
       expect(groups.libraries, ['gcc_s', 'c', 'gcc_s', 'dl']);
     });
 
@@ -112,8 +109,10 @@ note: native-static-libs: -framework CoreFoundation -lSystem -lc
 
     test('the last note wins', () {
       expect(
-        nativeStaticLibsNote('note: native-static-libs: -la\n'
-            'note: native-static-libs: -lb\n'),
+        nativeStaticLibsNote(
+          'note: native-static-libs: -la\n'
+          'note: native-static-libs: -lb\n',
+        ),
         ['-lb'],
       );
     });
@@ -142,10 +141,11 @@ note: native-static-libs: -framework CoreFoundation -lSystem -lc
     });
 
     test('keeps quoted segments with spaces whole', () {
-      expect(
-        splitLinkFlags('-L "/Users/me/My SDK/lib" \'-framework\''),
-        ['-L', '/Users/me/My SDK/lib', '-framework'],
-      );
+      expect(splitLinkFlags('-L "/Users/me/My SDK/lib" \'-framework\''), [
+        '-L',
+        '/Users/me/My SDK/lib',
+        '-framework',
+      ]);
     });
 
     test('backslash escapes the next character', () {
@@ -153,9 +153,7 @@ note: native-static-libs: -framework CoreFoundation -lSystem -lc
     });
 
     test('an unterminated quote runs to the end of the line', () {
-      expect(splitLinkFlags('"/Users/me/My SDK/lib'), [
-        '/Users/me/My SDK/lib',
-      ]);
+      expect(splitLinkFlags('"/Users/me/My SDK/lib'), ['/Users/me/My SDK/lib']);
     });
 
     test('empty segments add no flags', () {

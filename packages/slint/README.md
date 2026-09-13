@@ -10,5 +10,4 @@ dependencies:
   slint: ^0.0.1
 ```
 
-**Full docs:** see the docs site (`just docs-serve`) — package page under
-Packages, plus the [Backends](../../site/content/guides/backends.md) guide.
+**Full docs:** [slint package page](https://listepo.github.io/slint_dart/packages/slint/), [Backends guide](https://listepo.github.io/slint_dart/guides/backends/).

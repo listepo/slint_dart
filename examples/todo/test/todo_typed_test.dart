@@ -8,7 +8,12 @@ import 'package:todo_example/todo.g.dart';
 void main() {
   late SlintInterpreterFactory factory;
 
-  setUp(() => factory = SlintInterpreterFactory(TodoApp.slintSource));
+  setUp(
+    () => factory = SlintInterpreterFactory(
+      TodoApp.slintSource,
+      files: TodoApp.slintFiles,
+    ),
+  );
   tearDown(() => factory.dispose());
 
   test('create() defaults to the interpreter in debug builds', () {
@@ -29,10 +34,10 @@ void main() {
   test('todo-model roundtrips as generated struct values', () {
     final app = TodoApp.create(factory);
 
-    app.todoModel = const [
+    app.todoModel.replaceAll(const [
       TodoItem(title: 'buy milk', checked: false),
       TodoItem(title: 'ship demo', checked: true),
-    ];
+    ]);
 
     // The struct class carries value equality, so the whole list compares.
     expect(app.todoModel, const [
@@ -69,13 +74,18 @@ void main() {
     final app = TodoApp.create(factory);
     final target = app.renderTarget;
 
-    app.todoModel = const [TodoItem(title: 'test todo', checked: false)];
+    app.todoModel.replaceAll(const [
+      TodoItem(title: 'test todo', checked: false),
+    ]);
     target.resize(400, 300);
 
     expect(target.render(), isTrue);
     expect(target.pixels.length, 400 * 300 * 4);
-    expect(target.pixels.any((b) => b != 0), isTrue,
-        reason: 'rendered frame should not be fully transparent black');
+    expect(
+      target.pixels.any((b) => b != 0),
+      isTrue,
+      reason: 'rendered frame should not be fully transparent black',
+    );
 
     app.dispose();
   });

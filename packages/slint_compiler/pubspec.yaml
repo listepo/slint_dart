@@ -1,10 +1,16 @@
 name: slint_compiler
-description: Generates typed Dart wrappers (*.g.dart) from .slint files, AOT-compiled via slint-build — no slint-interpreter at runtime.
+description: "AOT backend for Slint on Flutter: compiles .slint files ahead of time into the app's native code asset, tree-shaken, with no interpreter at runtime."
 version: 0.0.1
 license: Apache-2.0
 homepage: https://github.com/listepo/slint_dart
 repository: https://github.com/listepo/slint_dart/tree/main/packages/slint_compiler
 issue_tracker: https://github.com/listepo/slint_dart/issues
+topics:
+  - slint
+  - codegen
+  - aot
+  - rust
+  - native-assets
 resolution: workspace
 
 environment:

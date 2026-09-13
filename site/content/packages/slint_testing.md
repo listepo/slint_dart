@@ -15,34 +15,43 @@ describe what a user can perceive and do, not which pixels changed.
 ```dart
 import 'package:slint_testing/slint_testing.dart';
 import 'package:test/test.dart';
+import 'package:todo_example/todo.g.dart';
 
 void main() {
-  test('adding a todo tells the app what to add', () {
-    final app = SlintTestApp.compile(
-      File('ui/todo.slint').readAsStringSync(),
-      component: 'TodoApp',
-      path: 'ui/todo.slint',
-    );
+  test('adding a todo reaches the typed handler', () {
+    final ui = SlintTestApp.compile(TodoApp.slintSource,
+        component: TodoApp.componentName, files: TodoApp.slintFiles);
+    final app = TodoApp(ui);
     addTearDown(app.dispose);
 
-    app.record('add-todo');
-    app.findById('TodoApp::edit').single.setValue('buy milk');
-    app.findByLabel('Add').single.click();
+    final added = <String>[];
+    app.onAddTodo(added.add);
+    ui.findById('TodoView::edit').single.setValue('buy milk');
+    ui.findByLabel('Add').single.click();
 
-    expect(app.takeCalls().single.args, ['buy milk']);
+    expect(added, ['buy milk']);
   });
 }
 ```
 
-Runs under plain `dart test` — no Flutter, no device, no golden files. The
-native library is built by the package's own build hook.
+`SlintTestApp` is a `SlintComponent`, so the wrapper `slint_generator`
+generated from the `.slint` wraps it like any backend's instance. Elements
+are found and acted on through the test app; properties and callbacks go
+through the wrapper's typed members, and nothing in the test names a Slint
+property or callback. The wrapper embeds the source and everything it
+imports, so the test reads no file.
+
+No device, no window, no golden files. The package itself needs no Flutter
+and its own tests run under plain `dart test`; a test that imports an app's
+wrapper runs under `flutter test`, like the app's other tests. The native
+library is built by the package's own build hook.
 
 ## Finding elements
 
 | Method | Matches |
 | --- | --- |
 | `findByLabel(label)` | the accessible label — a button's text, a checkbox's caption |
-| `findById(id)` | an element id qualified by its component, `TodoApp::edit` |
+| `findById(id)` | an element id qualified by the component that declares it, `TodoView::edit` |
 | `findByType(name)` | the element's type, `Button`, `LineEdit` |
 | `findByRole(role)` | the accessible role, `Button`, `Checkbox`, `TextInput` |
 | `findAll()` | every element in the tree |
@@ -87,27 +96,41 @@ timers without waiting in real time.
 
 ## Properties and callbacks
 
-`getProperty` / `setProperty` / `invoke` cross the same JSON bridge the
+`SlintTestApp` implements `SlintComponent`: `getProperty`, `setProperty`,
+`setCallbackHandler` and `invokeCallback` cross the same JSON bridge the
 interpreter uses, so Dart maps and lists map onto Slint structs and models.
+They are the layer a generated wrapper calls. A test uses the wrapper's
+members instead (`app.todoModel`, `app.onAddTodo(...)`), because only
+generated code spells Slint names.
 
-Callbacks are asserted through a call log rather than a Dart closure:
-`record(name)` starts recording invocations of that callback — replacing
-whatever handler the component had — and `takeCalls()` returns the calls
-since the last drain and clears the log. That keeps the whole surface
-synchronous and free of callback trampolines.
+A handler runs synchronously, inside the `click()` or `invokeCallback` that
+fired it. Its return value becomes the callback's, and `null` reads as the
+declared type's default. A handler that throws is reported to the current
+zone, which fails the test, and Slint gets the default. Disposing the app
+from inside a handler is safe: the native side is freed once the call that
+ran the handler returns.
+
+Nothing here renders, so the wrapper's `renderTarget` throws over this
+backend.
 
 ## Choosing the component
 
 `component:` may be omitted only when the source exports exactly one.
 The compiler returns components unordered, so with several exports there is
 no meaningful "first" to fall back on; `compile` throws and names what it
-found instead of picking one arbitrarily.
+found instead of picking one arbitrarily. Pass the wrapper's
+`componentName` rather than spelling it.
+
+`files:` takes what the source reads besides itself, `import`ed `.slint`
+files and `@image-url` resources, as a wrapper's `slintFiles` holds them.
+They are written to a temporary tree, so imports and images resolve without
+the test knowing where the app's `ui/` lives.
 
 ## Layout
 
 ```
 lib/slint_testing.dart      public API
-lib/src/testing.dart        SlintTestApp, SlintElement, SlintCall
+lib/src/testing.dart        SlintTestApp, SlintElement
 lib/src/bindings.g.dart     generated ffigen bindings — do not hand-edit
 hook/build.dart             builds the Rust crate as a native asset
 rust/                       slint-testing-ffi: the C ABI over the testing backend

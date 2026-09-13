@@ -1,4 +1,13 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:slint/slint_core.dart'
+    show
+        SlintPointerButton,
+        SlintPointerEvent,
+        SlintPointerEventKind,
+        SlintSourceTree,
+        writeSlintTree;
 import 'package:slint_skia/slint_skia.dart';
 import 'package:todo_shared/todo_shared.dart';
 
@@ -6,27 +15,15 @@ import 'todo.g.dart';
 
 // The same ui/todo.slint as examples/todo, on the slint_skia backend: the
 // Skia engine compiles the source todo.g.dart embeds, the Dart side owns the
-// list and pushes it into `todo-model`, and the frame is meant to arrive as a
-// Flutter external texture. What the backend does not do yet — render, hand
-// out a texture id, deliver callbacks — the page says on screen instead of
-// pretending (see packages/slint_skia/README.md, "Shortcuts & Ceilings").
+// list and pushes it into `todo-model`, and slint-skia-ffi renders the frame
+// on the GPU into a Flutter external texture shown with `Texture`. What the
+// backend does not do yet — deliver callbacks — the page says on screen
+// instead of pretending (see the slint_skia package page, "Shortcuts &
+// Ceilings").
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Slint Todo (Skia)',
-      theme: ThemeData(useMaterial3: true),
-      home: const TodoPage(),
-    );
-  }
+  runApp(const TodoExampleApp(title: 'Slint Todo (Skia)', home: TodoPage()));
 }
 
 class TodoPage extends StatefulWidget {
@@ -36,19 +33,35 @@ class TodoPage extends StatefulWidget {
   State<TodoPage> createState() => _TodoPageState();
 }
 
-class _TodoPageState extends State<TodoPage> {
+// The list, its callbacks and the page chrome live in examples/todo_shared;
+// this page drives the Skia engine and talks to it only through the generated
+// TodoApp wrapper, mapping entries to the generated TodoItem.
+class _TodoPageState extends State<TodoPage>
+    with TodoPageStateMixin, SingleTickerProviderStateMixin {
   SkiaSlintEngine? _engine;
   SkiaSlintComponent? _component;
+  TodoApp? _app;
   SkiaTextureRenderTarget? _target;
-  Object? _loadError;
+  SlintSourceTree? _sourceTree;
+  Ticker? _ticker;
+
+  /// The texture is being created; its callbacks own the component.
+  bool _creating = false;
+
+  /// The GPU path failed; the reason is in [_ceilings].
+  bool _stopped = false;
 
   /// Where the backend stopped short, in the words of its own exceptions.
   final List<String> _ceilings = [];
 
-  // The list itself lives in the shared TodoStore (examples/todo_shared);
-  // this page maps it with TodoEntry.toSlint() at the Slint boundary, which
-  // matches the generated TodoItem shape.
-  final TodoStore _store = TodoStore();
+  /// The layout's size in physical pixels (Slint's scale factor stays 1),
+  /// applied on the next tick.
+  double _dpr = 1;
+  int _wantedWidth = 0;
+  int _wantedHeight = 0;
+
+  /// Button held since the last down event; up/cancel events carry none.
+  SlintPointerButton _pressedButton = SlintPointerButton.none;
 
   @override
   void initState() {
@@ -58,132 +71,197 @@ class _TodoPageState extends State<TodoPage> {
       // Compiling is one FFI call. The Skia engine hands back the file's
       // root as a single definition (a documented ceiling), so select by
       // name only once it enumerates them.
-      final defs = engine.compile(TodoApp.slintSource, path: 'ui/todo.slint');
+      // The source imports the shared list UI, which the compiler resolves
+      // from disk: write the tree the wrapper embeds and compile its entry.
+      final tree = writeSlintTree(
+        TodoApp.slintSource,
+        TodoApp.slintFiles,
+        name: 'todo.slint',
+      );
+      _sourceTree = tree;
+      final defs = engine.compile(TodoApp.slintSource, path: tree.path);
       final def = defs.length == 1
           ? defs.single
           : defs.firstWhere((d) => d.name == TodoApp.componentName);
       final component = _component = def.instantiate() as SkiaSlintComponent;
-      _target = SkiaTextureRenderTarget(component);
-      _wire(component);
-      _sync();
+      _wire(_app = TodoApp(component));
+      syncTodos();
+      _ticker = createTicker(_onTick)..start();
     } catch (e) {
-      _loadError = e;
+      loadError = e;
     }
   }
 
-  void _wire(SkiaSlintComponent component) {
+  void _wire(TodoApp app) {
     // Callbacks are not delivered by the Skia backend yet; keep the list
     // Dart-owned and say so rather than silently dropping taps.
     try {
-      component.setCallbackHandler('add-todo', (args) {
-        _onAddTodo(args.first as String);
-        return null;
-      });
-      component.setCallbackHandler('toggle-todo', (args) {
-        _onToggleTodo(args[0] as int, args[1] as bool);
-        return null;
-      });
-      component.setCallbackHandler('remove-done', (_) {
-        _onRemoveDone();
-        return null;
-      });
+      app
+        ..onAddTodo(addTodo)
+        ..onToggleTodo(toggleTodo)
+        ..onRemoveDone(removeDone);
     } on UnimplementedError catch (e) {
       _ceilings.add('$e');
     }
   }
 
-  void _sync() {
-    _component?.setProperty('todo-model', [
-      for (final t in _store.items) t.toSlint(),
+  @override
+  void pushTodos(List<TodoEntry> items) {
+    _app?.todoModel.replaceAll([
+      for (final e in items) TodoItem(title: e.title, checked: e.checked),
     ]);
-    setState(() {});
   }
 
-  void _onAddTodo(String title) {
-    if (_store.addTodo(title)) _sync();
-  }
-
-  void _onToggleTodo(int index, bool checked) {
-    if (_store.toggleTodo(index, checked)) _sync();
-  }
-
-  void _onRemoveDone() {
-    _store.removeDone();
-    _sync();
-  }
-
-  /// The external texture id, or null while the GPU plumbing is stubbed.
-  int? _textureId() {
+  /// Creates the texture at the first bounded size, then resizes and renders
+  /// it once per frame.
+  void _onTick(Duration _) {
+    final width = _wantedWidth;
+    final height = _wantedHeight;
+    if (width <= 0 || height <= 0) return;
     final target = _target;
-    if (target == null) return null;
     try {
-      if (!target.render()) {
-        _ceiling('render() returned false: no GPU surface bound yet');
-        return null;
+      if (target == null) {
+        _create(width, height);
+      } else {
+        target.resize(width, height);
+        target.render();
       }
-      return target.textureId;
-    } on UnimplementedError catch (e) {
-      _ceiling('$e');
-      return null;
+    } catch (e) {
+      _stop(e);
     }
   }
 
-  void _ceiling(String what) {
-    if (!_ceilings.contains(what)) _ceilings.add(what);
+  void _create(int width, int height) {
+    final component = _component;
+    if (_creating || component == null) return;
+    _creating = true;
+    SkiaTextureRenderTarget.create(component, width, height).then(
+      (target) {
+        _creating = false;
+        if (mounted) {
+          setState(() => _target = target);
+        } else {
+          target.dispose(); // disposes the component
+        }
+      },
+      onError: (Object e) {
+        _creating = false;
+        if (mounted) {
+          _stop(e);
+        } else {
+          component.dispose();
+        }
+      },
+    );
+  }
+
+  void _stop(Object error) {
+    _ticker?.stop();
+    setState(() {
+      _stopped = true;
+      if (!_ceilings.contains('$error')) _ceilings.add('$error');
+    });
   }
 
   @override
   void dispose() {
-    _target?.dispose(); // disposes the component
+    _ticker?.dispose();
+    final target = _target;
+    if (target != null) {
+      target.dispose(); // disposes the component
+    } else if (!_creating) {
+      _component?.dispose();
+    } // else _create's callbacks dispose it when the texture lands.
     _engine?.dispose();
+    _sourceTree?.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final textureId = _textureId();
-    return Scaffold(
-      appBar: AppBar(title: Text(_store.countTitle('SkiaSlintEngine'))),
-      body: _loadError != null
-          ? Center(child: Text('$_loadError'))
-          : textureId != null
-          ? Texture(textureId: textureId)
-          : _Ceilings(todos: _store.items, ceilings: _ceilings),
-    );
-  }
-}
-
-/// What the app would show if the frame arrived, and why it has not.
-class _Ceilings extends StatelessWidget {
-  const _Ceilings({required this.todos, required this.ceilings});
-
-  final List<TodoEntry> todos;
-  final List<String> ceilings;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+  Widget build(BuildContext context) => buildTodoScaffold(
+    backend: 'SkiaSlintEngine',
+    body: () => Column(
       children: [
-        const Text(
-          'Compiled and instantiated by the Skia backend; '
-          'todo-model synced from Dart:',
-        ),
-        for (final t in todos)
-          ListTile(
-            leading: Icon(
-              t.checked ? Icons.check_box : Icons.check_box_outline_blank,
-            ),
-            title: Text(t.title),
-          ),
-        const Divider(),
-        const Text('Not on screen yet — the backend stops here:'),
-        for (final c in ceilings)
+        Expanded(child: LayoutBuilder(builder: _texture)),
+        for (final c in _ceilings)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(c, style: Theme.of(context).textTheme.bodySmall),
           ),
       ],
+    ),
+  );
+
+  Widget _texture(BuildContext context, BoxConstraints constraints) {
+    _dpr = MediaQuery.devicePixelRatioOf(context);
+    _wantedWidth = _physical(constraints.maxWidth);
+    _wantedHeight = _physical(constraints.maxHeight);
+    final target = _target;
+    if (target == null) {
+      return _stopped
+          ? const SizedBox.shrink()
+          : const Center(child: CircularProgressIndicator());
+    }
+    // ponytail: pointer input only. SlintView's Focus + TextInputClient is
+    // the pattern to copy once typing into the texture matters.
+    return MouseRegion(
+      onExit: (_) => _pointer(SlintPointerEventKind.exit, null),
+      child: Listener(
+        onPointerDown: (event) {
+          _pressedButton = _buttonOf(event.buttons);
+          _pointer(SlintPointerEventKind.down, event, button: _pressedButton);
+        },
+        onPointerMove: (event) => _pointer(SlintPointerEventKind.move, event),
+        onPointerHover: (event) => _pointer(SlintPointerEventKind.move, event),
+        onPointerUp: _release,
+        onPointerCancel: (event) {
+          _release(event);
+          _pointer(SlintPointerEventKind.exit, null);
+        },
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent) {
+            _pointer(
+              SlintPointerEventKind.scroll,
+              event,
+              scroll: -event.scrollDelta,
+            );
+          }
+        },
+        child: SizedBox.expand(child: Texture(textureId: target.textureId)),
+      ),
+    );
+  }
+
+  int _physical(double logical) =>
+      logical.isFinite ? (logical * _dpr).toInt().clamp(0, 1 << 30) : 0;
+
+  static SlintPointerButton _buttonOf(int buttons) {
+    if (buttons & kSecondaryButton != 0) return SlintPointerButton.right;
+    if (buttons & kMiddleMouseButton != 0) return SlintPointerButton.middle;
+    return SlintPointerButton.left;
+  }
+
+  void _release(PointerEvent event) {
+    _pointer(SlintPointerEventKind.up, event, button: _pressedButton);
+    _pressedButton = SlintPointerButton.none;
+  }
+
+  void _pointer(
+    SlintPointerEventKind kind,
+    PointerEvent? event, {
+    SlintPointerButton button = SlintPointerButton.none,
+    Offset scroll = Offset.zero,
+  }) {
+    final at = (event?.localPosition ?? Offset.zero) * _dpr;
+    _target?.dispatchPointerEvent(
+      SlintPointerEvent(
+        kind: kind,
+        x: at.dx,
+        y: at.dy,
+        button: button,
+        scrollDeltaX: scroll.dx * _dpr,
+        scrollDeltaY: scroll.dy * _dpr,
+      ),
     );
   }
 }

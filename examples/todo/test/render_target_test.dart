@@ -39,8 +39,11 @@ void main() {
       final target = app.renderTarget..resize(200, 100);
       final before = target.pixels;
       target.resize(200, 100);
-      expect(identical(target.pixels, before), isTrue,
-          reason: 'an unchanged size should not reallocate');
+      expect(
+        identical(target.pixels, before),
+        isTrue,
+        reason: 'an unchanged size should not reallocate',
+      );
     });
 
     test('render reports whether a frame was actually drawn', () {
@@ -49,8 +52,11 @@ void main() {
       // Flutter repaint depend on the difference.
       final target = app.renderTarget..resize(200, 100);
       expect(target.render(), isTrue, reason: 'first frame is always dirty');
-      expect(target.render(), isFalse,
-          reason: 'nothing changed, so nothing is redrawn');
+      expect(
+        target.render(),
+        isFalse,
+        reason: 'nothing changed, so nothing is redrawn',
+      );
       expect(target.pixels.any((b) => b != 0), isTrue);
     });
 
@@ -59,7 +65,9 @@ void main() {
       target.render();
       expect(target.render(), isFalse);
 
-      app.todoModel = const [TodoItem(title: 'newly added', checked: false)];
+      app.todoModel.replaceAll(const [
+        TodoItem(title: 'newly added', checked: false),
+      ]);
       expect(target.render(), isTrue);
     });
 
@@ -82,12 +90,14 @@ void main() {
       expect(target.render(), isTrue);
 
       for (final kind in SlintPointerEventKind.values) {
-        target.dispatchPointerEvent(SlintPointerEvent(
-          kind: kind,
-          x: 20,
-          y: 30,
-          button: SlintPointerButton.left,
-        ));
+        target.dispatchPointerEvent(
+          SlintPointerEvent(
+            kind: kind,
+            x: 20,
+            y: 30,
+            button: SlintPointerButton.left,
+          ),
+        );
       }
 
       expect(target.render(), isTrue);
@@ -102,35 +112,37 @@ void main() {
 
     test('carries scroll deltas', () {
       final target = app.renderTarget..resize(300, 400);
-      target.dispatchPointerEvent(const SlintPointerEvent(
-        kind: SlintPointerEventKind.scroll,
-        x: 10,
-        y: 10,
-        scrollDeltaY: -40,
-      ));
+      target.dispatchPointerEvent(
+        const SlintPointerEvent(
+          kind: SlintPointerEventKind.scroll,
+          x: 10,
+          y: 10,
+          scrollDeltaY: -40,
+        ),
+      );
       expect(target.render(), isTrue);
     });
   });
 
   group('property bridge', () {
     test('an empty model roundtrips', () {
-      app.todoModel = [];
+      app.todoModel.replaceAll([]);
       expect(app.todoModel, isEmpty);
     });
 
     test('preserves unicode and quotes in titles', () {
-      app.todoModel = const [
+      app.todoModel.replaceAll(const [
         TodoItem(title: r'Slint ♥ "Flutter" \ $5', checked: false),
-      ];
+      ]);
       expect(app.todoModel.single.title, r'Slint ♥ "Flutter" \ $5');
     });
 
     test('replacing the model drops the previous items', () {
-      app.todoModel = const [
+      app.todoModel.replaceAll(const [
         TodoItem(title: 'first', checked: false),
         TodoItem(title: 'second', checked: false),
-      ];
-      app.todoModel = const [TodoItem(title: 'only', checked: true)];
+      ]);
+      app.todoModel.replaceAll(const [TodoItem(title: 'only', checked: true)]);
 
       expect(app.todoModel, const [TodoItem(title: 'only', checked: true)]);
     });

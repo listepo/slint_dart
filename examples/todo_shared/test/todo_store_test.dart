@@ -3,11 +3,6 @@ import 'package:todo_shared/todo_shared.dart';
 
 void main() {
   group('TodoEntry', () {
-    test('roundtrips through the Slint map shape', () {
-      const entry = TodoEntry(title: 'buy milk', checked: true);
-      expect(TodoEntry.fromSlint(entry.toSlint()), entry);
-    });
-
     test('carries value equality', () {
       expect(
         const TodoEntry(title: 'a', checked: false),

@@ -27,10 +27,10 @@ void main() {
     final app = _createOrSkip();
     if (app == null) return;
 
-    app.todoModel = const [
+    app.todoModel.replaceAll(const [
       TodoItem(title: 'buy milk', checked: false),
       TodoItem(title: 'ship demo', checked: true),
-    ];
+    ]);
 
     expect(app.todoModel, const [
       TodoItem(title: 'buy milk', checked: false),
@@ -68,13 +68,18 @@ void main() {
     if (app == null) return;
     final target = app.renderTarget;
 
-    app.todoModel = const [TodoItem(title: 'test todo', checked: false)];
+    app.todoModel.replaceAll(const [
+      TodoItem(title: 'test todo', checked: false),
+    ]);
     target.resize(400, 300);
 
     expect(target.render(), isTrue);
     expect(target.pixels.length, 400 * 300 * 4);
-    expect(target.pixels.any((b) => b != 0), isTrue,
-        reason: 'rendered frame should not be fully transparent black');
+    expect(
+      target.pixels.any((b) => b != 0),
+      isTrue,
+      reason: 'rendered frame should not be fully transparent black',
+    );
 
     app.dispose();
   });

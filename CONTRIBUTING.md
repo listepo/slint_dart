@@ -15,7 +15,7 @@ mise exec -- dart pub get        # resolves the whole workspace, melos included
 
 ```
 pubspec.yaml     pub workspace + melos config (`melos:` key)
-Cargo.toml       Cargo workspace: every crate under packages/*/rust (and slint_interpreter/interpreter)
+Cargo.toml       Cargo workspace: every crate under packages/*/rust (and slint_build/interpreter)
 packages/        the Dart packages, each with its Rust crate(s) inside
 examples/        apps consuming the packages through the workspace
 ```
@@ -40,6 +40,7 @@ mise exec -- dart run melos run analyze        # dart analyze, per package
 mise exec -- dart run melos run test           # Dart packages, then Flutter packages and examples/todo
 mise exec -- dart run melos run codegen        # ui/*.slint → lib/*.g.dart in the examples
 mise exec -- dart run melos run rust:clippy    # every crate except slint-skia-ffi
+mise exec -- dart run melos run rust:test      # cargo test, same exclusion
 mise exec -- dart run melos run check          # everything CI runs
 mise exec -- dart run melos list               # what's in the workspace
 ```
@@ -52,12 +53,22 @@ First runs are slow: `flutter test` and `slint_testing`'s `dart test` build
 their Rust crates through the native-assets hooks (release profile, minutes).
 Nothing needs a manual `cargo build`.
 
-## What never runs locally
+## What default CI skips (Skia)
 
-`slint_skia`'s crate pulls in all of Skia. `cargo build/check/clippy` of
-`slint-skia-ffi`, and `flutter run/build/test` of `examples/todo_skia`, are
-CI-only. The melos scripts already skip them; `dart run build_runner build`
-and `dart analyze .` are the local checks for `todo_skia`.
+`slint_skia`'s crate pulls in all of Skia (10+ GB of artifacts). Default CI
+(`melos run check`, `just check`) excludes `slint-skia-ffi` from
+`cargo clippy` / `cargo test` and `examples/todo_skia` from `flutter test`.
+The `skia-*` jobs in `.github/workflows/ci.yml` compile it instead, one per
+platform family (`skia-apple`, `skia-linux`, `skia-android`, `skia-windows`):
+clippy and the crate's GPU test (a frame rendered into the platform's texture
+and read back) where the runner can run them, and a debug build of
+`examples/todo_skia`, which compiles the `slint_skia` plugin too. They are
+the only place the GPU path is built and checked; no local check builds it.
+
+For `todo_skia` locally, `dart run build_runner build` and `dart analyze .`
+are the everyday checks. `flutter run`, `flutter build`, and `flutter test`
+there compile Skia through `slint_skia`'s hook — optional, slow, and not part
+of the default check.
 
 ## Dead code and size
 
@@ -77,8 +88,8 @@ the apps' `hook/*.dart`, not by Dart imports. `cargo machete` lists
 `slint-skia-ffi`'s Skia dependencies: the skeleton does not reference them
 yet (see its `AGENTS.md`).
 
-Release size is the AOT dylib; `packages/slint_compiler/README.md` has the
-measured breakdown ("Where the bytes go") and the `cargo bloat` recipe.
+Release size is the AOT dylib; `site/content/packages/slint_compiler.md` has
+the measured breakdown ("Where the bytes go") and the `cargo bloat` recipe.
 
 ## Before opening a PR
 
@@ -94,7 +105,10 @@ measured breakdown ("Where the bytes go") and the `cargo bloat` recipe.
    that package's `AGENTS.md`.
 
 Commit messages follow conventional-commit style (`feat:`, `fix:`, `test:`,
-`docs:`, `refactor:`), imperative subject, body explaining the why.
+`docs:`, `refactor:`), imperative subject, body explaining the why. The
+human is the only author: no `Co-Authored-By` trailer, "Generated with …"
+line or AI agent as author on a commit, merge or PR, whatever a tool
+defaults to.
 
 ## Adding a package
 
@@ -149,7 +163,11 @@ Then on each package page → **Admin** → **Automated publishing**:
 
 ### Later releases (from CI)
 
-1. Bump `version:` (and changelog) only for packages that change. Others can stay.
+1. Bump `version:` (and changelog). While the packages are on `0.0.x`, bump
+   **all of them together**, along with every `^0.0.x` constraint between
+   them and in `examples/`: a caret on `0.0.x` admits that one patch only, so
+   `slint: ^0.0.1` rejects `slint 0.0.2` and the workspace stops resolving.
+   From `0.1.0` on, `^0.1.0` admits patches and a single package can go alone.
 2. Merge to `main`.
 3. Tag with the **new** version: `git tag v0.0.2 && git push origin v0.0.2`
 4. The workflow publishes packages whose pubspec version equals the tag and is not already on pub.dev; unchanged packages are skipped.

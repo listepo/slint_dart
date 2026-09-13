@@ -6,8 +6,7 @@ import 'package:hooks/hooks.dart';
 import 'package:native_toolchain_c/native_toolchain_c.dart';
 import 'package:record_use/record_use.dart';
 
-import 'src/generator.dart'
-    show aotLibraryName, aotLinkManifestName;
+import 'src/generator.dart' show aotLibraryName, aotLinkManifestName;
 
 /// App link hook: links the final `slint-dart-aot` dylib from the staticlib
 /// the build hook (`aot_build.dart`) routed here, keeping only the components
@@ -46,8 +45,8 @@ Future<void> linkSlintAot(LinkInput input, LinkOutputBuilder output) async {
     File.fromUri(staticLib.file!.resolve(aotLinkManifestName))
         .readAsStringSync(),
   ) as Map<String, Object?>;
-  final components =
-      (manifest['components'] as List).cast<Map<String, Object?>>();
+  final components = (manifest['components'] as List)
+      .cast<Map<String, Object?>>();
   final assetIds = (manifest['assetIds'] as List).cast<String>();
   final sharedSymbols = (manifest['sharedSymbols'] as List).cast<String>();
   final linkFlags = (manifest['linkFlags'] as List).cast<String>();
@@ -66,8 +65,7 @@ Future<void> linkSlintAot(LinkInput input, LinkOutputBuilder output) async {
   final keepSymbols = [
     ...sharedSymbols,
     for (final c in components)
-      if (used.contains(c['name']))
-        ...(c['symbols'] as List).cast<String>(),
+      if (used.contains(c['name'])) ...(c['symbols'] as List).cast<String>(),
   ];
   final flags = partitionLinkFlags(linkFlags);
   final os = input.config.code.targetOS;
@@ -93,8 +91,9 @@ Future<void> linkSlintAot(LinkInput input, LinkOutputBuilder output) async {
   ).run(input: input, output: output);
 
   // CLinker linked one dylib; every .slint file's asset id points at it.
-  final libUri = input.outputDirectory
-      .resolve(os.libraryFileName(aotLibraryName, DynamicLoadingBundled()));
+  final libUri = input.outputDirectory.resolve(
+    os.libraryFileName(aotLibraryName, DynamicLoadingBundled()),
+  );
   for (final id in assetIds) {
     output.assets.code.add(
       CodeAsset(

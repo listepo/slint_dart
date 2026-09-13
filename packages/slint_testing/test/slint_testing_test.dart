@@ -1,6 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:slint/slint_core.dart';
 import 'package:slint_testing/slint_testing.dart';
 import 'package:test/test.dart';
 
+// The dynamic layer under test is keyed by Slint name, so these tests are
+// too. App code never is: it wraps a SlintTestApp in its generated wrapper
+// (examples/todo/test/todo_headless_test.dart).
 const _source = '''
 import { Button, CheckBox, LineEdit } from "std-widgets.slint";
 
@@ -9,6 +16,7 @@ export component Form inherits Window {
     in property <bool> saved: false;
     callback save(name: string);
     callback reset();
+    callback shout(text: string) -> string;
 
     VerticalLayout {
         edit := LineEdit {
@@ -44,7 +52,8 @@ void main() {
   group('compile', () {
     test('a lone exported component needs no name', () {
       final only = SlintTestApp.compile(
-          'export component Only inherits Window { Text { text: "hi"; } }');
+        'export component Only inherits Window { Text { text: "hi"; } }',
+      );
       addTearDown(only.dispose);
       expect(only.findAll(), isNotEmpty);
     });
@@ -52,17 +61,26 @@ void main() {
     test('asks which component to test when the source exports several', () {
       expect(
         () => SlintTestApp.compile(_source),
-        throwsA(isA<SlintTestException>()
-            .having((e) => e.message, 'message', contains('Form, Other'))),
+        throwsA(
+          isA<SlintTestException>().having(
+            (e) => e.message,
+            'message',
+            contains('Form, Other'),
+          ),
+        ),
       );
     });
 
-    test('names the components it did find when the wanted one is missing',
-        () {
+    test('names the components it did find when the wanted one is missing', () {
       expect(
         () => SlintTestApp.compile(_source, component: 'Nope'),
-        throwsA(isA<SlintTestException>()
-            .having((e) => e.message, 'message', contains('Form'))),
+        throwsA(
+          isA<SlintTestException>().having(
+            (e) => e.message,
+            'message',
+            contains('Form'),
+          ),
+        ),
       );
     });
 
@@ -71,6 +89,22 @@ void main() {
         () => SlintTestApp.compile('export component Broken { syntax('),
         throwsA(isA<SlintTestException>()),
       );
+    });
+
+    test('imports resolve through files, as a generated wrapper embeds them', () {
+      final imported = SlintTestApp.compile(
+        'import { Greeting } from "../parts/greeting.slint";\n'
+        'export component Main inherits Window { Greeting {} }',
+        files: {
+          '../parts/greeting.slint': base64Encode(
+            utf8.encode(
+              'export component Greeting { Text { text: "from an import"; } }',
+            ),
+          ),
+        },
+      );
+      addTearDown(imported.dispose);
+      expect(imported.findByLabel('from an import'), isNotEmpty);
     });
   });
 
@@ -91,12 +125,16 @@ void main() {
     });
 
     test('findByRole filters the whole tree', () {
-      expect(app.findByRole('Button').map((e) => e.label),
-          containsAll(['Save', 'Reset']));
+      expect(
+        app.findByRole('Button').map((e) => e.label),
+        containsAll(['Save', 'Reset']),
+      );
       // A widget repeats its role on the inner elements that implement it, so
       // match the checkbox itself rather than counting the hits.
-      expect(app.findByRole('Checkbox').map((e) => e.id),
-          contains('Form::agree'));
+      expect(
+        app.findByRole('Checkbox').map((e) => e.id),
+        contains('Form::agree'),
+      );
     });
 
     test('findAll descends into the widgets themselves', () {
@@ -124,21 +162,27 @@ void main() {
       expect(app.findById('Form::agree').single.checked, isTrue);
     });
 
-    test('click fires the callback the button is wired to', () {
-      app.record('reset');
+    test('click runs the handler of the callback the button is wired to', () {
+      var resets = 0;
+      app.setCallbackHandler('reset', (_) {
+        resets++;
+        return null;
+      });
       app.findByLabel('Reset').single.click();
-      expect(app.takeCalls().single.name, 'reset');
+      expect(resets, 1);
     });
 
-    test('setValue types into a text input, and the callback sees it', () {
-      app.record('save');
+    test('setValue types into a text input, and the handler sees it', () {
+      final saved = <List<Object?>>[];
+      app.setCallbackHandler('save', (args) {
+        saved.add(args);
+        return null;
+      });
       app.findById('Form::edit').single.setValue('a title');
       app.findByLabel('Save').single.click();
-
-      final calls = app.takeCalls();
-      expect(calls, hasLength(1));
-      expect(calls.single.name, 'save');
-      expect(calls.single.args, ['a title']);
+      expect(saved, [
+        ['a title'],
+      ]);
     });
 
     test('an element from a superseded query refuses to act', () {
@@ -146,31 +190,70 @@ void main() {
       app.findByLabel('Reset'); // replaces the snapshot `save` indexes into
       expect(save.click, throwsA(isA<SlintTestException>()));
     });
-
-    test('takeCalls drains the log', () {
-      app.record('reset');
-      app.findByLabel('Reset').single.click();
-      expect(app.takeCalls(), hasLength(1));
-      expect(app.takeCalls(), isEmpty);
-    });
   });
 
-  group('properties', () {
-    test('round-trip through the JSON bridge', () {
+  group('SlintComponent', () {
+    test('is one, so a generated wrapper can wrap it', () {
+      expect(app, isA<SlintComponent>());
+    });
+
+    test('properties round-trip through the JSON bridge', () {
       app.setProperty('title-text', 'from the test');
       expect(app.getProperty('title-text'), 'from the test');
       expect(app.findById('Form::edit').single.value, 'from the test');
     });
 
-    test('invoke calls a callback directly', () {
-      app.record('save');
-      app.invoke('save', ['direct']);
-      expect(app.takeCalls().single.args, ['direct']);
+    test("a handler's result is the callback's result", () {
+      app.setCallbackHandler(
+        'shout',
+        (args) => (args.single as String).toUpperCase(),
+      );
+      expect(app.invokeCallback('shout', ['hi']), 'HI');
+    });
+
+    test('a handler without a result yields the declared default', () {
+      app.setCallbackHandler('shout', (_) => null);
+      expect(app.invokeCallback('shout', ['hi']), '');
+    });
+
+    test('a throwing handler reports to the zone and yields the default', () {
+      app.setCallbackHandler('shout', (_) => throw StateError('handler bug'));
+      final errors = <Object>[];
+      Object? result;
+      runZonedGuarded(
+        () => result = app.invokeCallback('shout', ['hi']),
+        (e, _) => errors.add(e),
+      );
+      expect(result, '');
+      expect(errors, [
+        isA<StateError>().having((e) => e.message, 'message', 'handler bug'),
+      ]);
+    });
+
+    test('a later handler replaces the earlier one', () {
+      app.setCallbackHandler('shout', (_) => 'first');
+      app.setCallbackHandler('shout', (_) => 'second');
+      expect(app.invokeCallback('shout', ['hi']), 'second');
+    });
+
+    test('setCallbackHandler from inside invokeCallback', () {
+      app.setCallbackHandler('shout', (args) {
+        app.setCallbackHandler('shout', (_) => 'NEW');
+        return (args.single as String).toUpperCase();
+      });
+      expect(app.invokeCallback('shout', ['hi']), 'HI');
+      expect(app.invokeCallback('shout', ['hi']), 'NEW');
     });
 
     test('an unknown property is an error, not a silent null', () {
-      expect(() => app.getProperty('nope'),
-          throwsA(isA<SlintTestException>()));
+      expect(() => app.getProperty('nope'), throwsA(isA<SlintTestException>()));
+    });
+
+    test('an unknown callback is an error', () {
+      expect(
+        () => app.setCallbackHandler('nope', (_) => null),
+        throwsA(isA<SlintTestException>()),
+      );
     });
   });
 
@@ -182,12 +265,25 @@ void main() {
       expect(other.findAll, throwsA(isA<SlintTestException>()));
     });
 
+    test('a handler that disposes the app mid-click does not crash', () {
+      final form = SlintTestApp.compile(_source, component: 'Form');
+      form.setCallbackHandler('reset', (_) {
+        form.dispose();
+        return null;
+      });
+      form.findByLabel('Reset').single.click();
+      expect(form.findAll, throwsA(isA<SlintTestException>()));
+    });
+
     test('mock time advances without real waiting', () {
       // No animation to observe here; the point is that it is callable and
       // does not wall-clock wait.
       final start = DateTime.now();
       app.elapse(const Duration(seconds: 5));
-      expect(DateTime.now().difference(start), lessThan(const Duration(seconds: 1)));
+      expect(
+        DateTime.now().difference(start),
+        lessThan(const Duration(seconds: 1)),
+      );
     });
   });
 }

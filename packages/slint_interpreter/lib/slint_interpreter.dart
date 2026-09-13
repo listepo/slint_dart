@@ -5,5 +5,4 @@
 library;
 
 export 'src/factory.dart';
-export 'src/loader.dart';
 export 'src/interpreter_engine.dart';

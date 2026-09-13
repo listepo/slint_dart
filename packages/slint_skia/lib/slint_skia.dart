@@ -2,8 +2,8 @@
 ///
 /// Provides [SkiaSlintEngine], [SkiaSlintComponent], and [SkiaTextureRenderTarget]
 /// for building Slint applications with GPU rendering in Flutter.
+library;
 
-export 'src/library.dart' show skiaLib;
 export 'src/skia_engine.dart'
     show
         SkiaSlintEngine,

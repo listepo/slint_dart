@@ -21,7 +21,11 @@ const aotComponentOps = [
 ];
 
 /// C symbols shared by every component in the glue library.
-const aotSharedSymbols = ['slint_aot_last_error', 'slint_aot_string_free'];
+const aotSharedSymbols = [
+  'slint_aot_last_error',
+  'slint_aot_string_free',
+  'slint_aot_callback_set_result',
+];
 
 /// File name of the manifest the build hook writes next to the routed
 /// staticlib for the link hook (components, symbols, linker flags).
@@ -35,8 +39,9 @@ String aotSymbolPrefix(String componentName) =>
     'slint_aot_${snakeFromPascal(componentName)}';
 
 /// All C symbols belonging to [componentName].
-List<String> aotComponentSymbols(String componentName) =>
-    [for (final op in aotComponentOps) '${aotSymbolPrefix(componentName)}_$op'];
+List<String> aotComponentSymbols(String componentName) => [
+  for (final op in aotComponentOps) '${aotSymbolPrefix(componentName)}_$op',
+];
 
 /// Dart name of the generated `_new` extern for [componentName]. It carries
 /// `@RecordUse()`, so tear-offs of it are what the link hook keys component
@@ -83,6 +88,9 @@ external ffi.Pointer<ffi.Char> _lastError();
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_string_free')
 external void _stringFree(ffi.Pointer<ffi.Char> s);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_callback_set_result')
+external void _callbackSetResult(ffi.Pointer<ffi.Char> json);
 ''');
 
   for (final component in schema.components) {
@@ -144,6 +152,7 @@ final ${aotFactoryName(pascal)} = SlintCompilerFactory(
   ops: SlintComponentOps(
     lastError: _lastError,
     stringFree: _stringFree,
+    callbackSetResult: _callbackSetResult,
     create: _${lower}New,
     free: _${lower}Free,
     setSize: _${lower}SetSize,

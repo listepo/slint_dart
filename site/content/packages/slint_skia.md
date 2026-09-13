@@ -5,90 +5,104 @@ weight: 40
 ---
 
 
-A Flutter FFI plugin providing GPU-accelerated Slint component rendering via the Skia graphics engine.
+A Flutter plugin over Rust FFI that renders Slint components with Skia on the
+GPU into a Flutter external texture.
 
 ## Architecture
 
-### Implemented (Real)
+- **Interpreter pipeline**: compilation and instantiation via
+  `slint-dart-interpreter` (the shared interpreter crate, carried by
+  `slint_build`).
+- **C ABI bridge**: the `slint_skia_*` functions, with thread-local error
+  handling and `catch_unwind` on every entry point.
+- **Property bridge**: JSON getters, setters and invocation, consistent with
+  `slint-dart-interpreter`.
+- **Slint platform** (`rust/src/platform/mod.rs`): a `SkiaPlatform` that gives
+  every instance a `SkiaWindowAdapter` (a Slint `Window` plus a
+  `SkiaRenderer`). Size, pointer and key events go through `slint-dart-core`;
+  `render` runs Slint's timers and renders through the attached surface, and
+  fails with an error while none is attached.
+- **Per-platform surfaces**, each rendering into a texture the platform
+  plugin registers with Flutter:
 
-- **Interpreter pipeline**: Full component definition, compilation, and instantiation via `slint-dart-core` (the shared interpreter crate).
-- **C ABI bridge**: Complete FFI binding (`slint_skia_*` functions) with thread-local error handling.
-- **Property/event bridge**: JSON serialization for getters, setters, and method invocation — consistent with `slint-dart-core`.
-- **Dart API**: `SkiaSlintEngine`, `SkiaSlintComponent`, `SkiaSlintComponentDefinition` wrapping C calls.
-- **Memory safety**: Opaque handles, panic boundaries via `catch_unwind`, proper string lifetime management.
+| Platform | Texture (plugin) | Skia surface (Rust) |
+|---|---|---|
+| iOS, macOS | IOSurface-backed `CVPixelBuffer` → `CVMetalTextureCache` → `MTLTexture`, shown as a `FlutterTexture` (Swift, `darwin/`, SwiftPM + CocoaPods) | `platform/metal.rs`: wraps the `MTLTexture` with `skia_safe::gpu::mtl`, submits and waits |
+| Android | `TextureRegistry.SurfaceProducer` → `Surface` → `ANativeWindow` through the JNI `nativeWindowFromSurface` (Java, `android/`) | Slint's own GL/EGL surface on that window (`platform/android.rs`); Flutter composites the queued buffers |
+| Windows | `flutter::GpuSurfaceTexture` over a DXGI shared handle (C++, `windows/`) | `platform/d3d.rs`: a D3D12 device on Flutter's adapter (by LUID), a shared BGRA8 texture + NT handle, a Skia D3D context |
+| Linux | `FlPixelBufferTexture` fed with each frame (C, `linux/`) | `platform/gl.rs`: a headless EGL pbuffer (surfaceless Mesa first) with Skia GL, read back with `read_pixels` |
 
-### Stubbed (Documented Plan)
+Android uses Slint's GL surface because Slint 1.17.1's `VulkanSurface` has
+no Android NDK arm. Linux loads `libEGL.so.1` at runtime, so a missing EGL is
+an attach error rather than a failure to load the library.
 
-#### GPU Surface Plumbing (Per-Platform)
+### The `slint_skia` channel
 
-**Problem**: Rendering to a GPU texture requires:
-1. A platform-specific graphics surface (Metal on macOS/iOS, OpenGL/Vulkan on Android/Linux, Direct3D on Windows).
-2. A window adapter that binds `slint::platform::WindowAdapter` to `i_slint_renderer_skia::SkiaRenderer`.
-3. Frame export to Flutter as an external texture (via `FlutterExternalTexture`).
+`SkiaTextureRenderTarget` talks to the plugin over
+`MethodChannel('slint_skia')` and to Rust over FFI:
 
-**Current Status**: `slint_skia_instance_render()` returns `false`; `slint_skia_instance_texture_id()` returns `-1`.
+| Call | Platforms | What |
+|---|---|---|
+| `create` → texture id | all | registers the texture |
+| `allocate {textureId, width, height}` | Apple → `{device, queue, texture}`; Android → `{window}`; Windows → `{luidLow, luidHigh}` | the render target Rust attaches to (`slint_skia_instance_attach_*`) |
+| `setHandle {textureId, handle, width, height}` | Windows | the NT handle `attach_d3d` returned; the plugin keeps a duplicate |
+| `frame {textureId}` | Apple, Windows, Linux (+ `pixels, length, width, height`) | a frame is ready; on Linux the plugin copies the borrowed pixels before it replies |
+| `dispose {textureId}` | all | unregisters the texture |
+| `surfaceCleanup` / `surfaceAvailable {textureId}` (plugin → Dart) | Android | detach / allocate and attach again |
 
-**Upgrade Path**:
+### Callback handler
 
-1. **Per-platform window adapters** (`rust/src/platform/mod.rs`):
-   ```
-   pub enum SkiaWindowAdapter {
-       #[cfg(target_os = "macos")]
-       Metal { surface: MetalSurface, renderer: SkiaRenderer },
-       #[cfg(target_os = "android")]
-       Vulkan { device: VulkanDevice, ... },
-       // ...
-   }
-   ```
+**Current**: `setCallbackHandler()` throws `UnimplementedError`, and so do a
+generated wrapper's `onX` members, which call it.
 
-2. **Frame buffer export**:
-   - Create a texture from the Skia frame after rendering.
-   - Register with Flutter's `ExternalTexture` API.
-   - Return texture handle to Dart.
-
-3. **Platform integration**:
-   - macOS/iOS: Metal surface from a CAMetalLayer provided by Flutter embedding.
-   - Android: Vulkan instance from the platform layer.
-   - Windows/Linux: OpenGL context from the host environment.
-
-4. **Reference**: the `slint_interpreter` software rendering path provides the pattern for platform abstraction.
-
-#### Callback Handler
-
-**Current**: `setCallbackHandler()` throws `UnimplementedError`.
-
-**Plan**: Use thread-safe channel to forward Slint callbacks (e.g., button clicks, input changes) to Dart closures. Requires event loop integration.
+**Plan**: forward Slint callbacks to Dart closures. Needs event loop
+integration (`slint_interpreter`'s software platform is the pattern).
 
 ---
 
-## Why This Crate Is Not Cargo-Checked
+## Building and CI
 
-Building `slint-skia-ffi` locally triggers compilation of:
+Building `slint-skia-ffi` compiles:
 - `i-slint-renderer-skia` (Slint's Skia bindings)
-- `skia-safe` (full Skia library, 10+ GB artifacts)
+- `skia-safe` (the full Skia library, 10+ GB of artifacts)
 
-**This is infeasible in normal CI/dev workflows.** Instead:
+So no local check builds it:
 
-- The Rust skeleton is **syntactically valid** and follows the C ABI contract.
-- It **compiles to object files** via CI builders with Skia pre-cached.
-- **No `cargo check` or `cargo build` locally** — the crate is verification-clean but not build-checked.
-- FFI bindings (Dart) are generated once from the stable C header, not on every change.
+- Default CI (`melos run check`) excludes `slint-skia-ffi` from
+  `cargo clippy` / `cargo test` and `examples/todo_skia` from `flutter test`.
+- The `skia-*` jobs in `.github/workflows/ci.yml` compile it, one per
+  platform family: `skia-apple` (clippy, the GPU test on Metal, macOS + iOS
+  simulator builds of `examples/todo_skia`), `skia-linux` (clippy, the GPU test
+  on Mesa's headless EGL, Linux build), `skia-android` (arm64 APK build) and
+  `skia-windows` (clippy, the GPU test on D3D12 or WARP, Windows build).
+- The crate's one test compiles a single-colour component, attaches the
+  platform's surface, renders, and reads the texture back. Without a usable
+  GPU API it fails unless `SLINT_SKIA_NO_GPU=1` is set (then it says it
+  skipped the frame check).
 
 ---
 
 ## Generating Bindings
 
-After modifying Rust code:
+After changing the C ABI:
 
 ```bash
-# Generate C header from Rust source
-cd packages/slint_skia/rust
-cbindgen --output include/slint_skia_ffi.h
+# Generate the C header from the Rust source
+cbindgen --config packages/slint_skia/rust/cbindgen.toml --crate slint-skia-ffi \
+  --output packages/slint_skia/rust/include/slint_skia_ffi.h packages/slint_skia/rust
 
-# Generate Dart FFI bindings (do NOT run locally; CI runs this)
-cd ..
-ffigen --config ffigen.yaml
+# Generate the Dart FFI bindings
+cd packages/slint_skia && dart run ffigen --config ffigen.yaml
 ```
+
+The attach entry points (and `slint_skia_instance_pixels`) exist on one
+platform each. `cbindgen.toml`'s `[defines]` guards them with `#if` in the
+header. ffigen parses that header for one host, so `ffigen.yaml` excludes
+them, together with `slint_skia_instance_detach`, and
+`lib/src/skia_native.dart` declares them by hand with `@Native`. The
+committed `bindings.g.dart` predates the GPU work: it still declares the
+removed `slint_skia_instance_texture_id`, which nothing calls, until ffigen
+runs again.
 
 ---
 
@@ -96,34 +110,69 @@ ffigen --config ffigen.yaml
 
 ### Dart
 
+This backend has no `SlintComponentFactory`, so a generated wrapper has no
+`load`/`register`/`defaultFactory` here. The app compiles through the engine
+and passes the component to the wrapper's constructor, which takes any
+backend's `SlintComponent`:
+
 ```dart
+import 'package:slint/slint_core.dart' show writeSlintTree;
 import 'package:slint_skia/slint_skia.dart';
 
+import 'todo.g.dart'; // generated from ui/todo.slint
+
 final engine = SkiaSlintEngine();
-final defs = engine.compile(slintSource); // the file must export one component
-final component = defs.single.instantiate();
+// The compiler resolves imports and @image-url from disk: write the tree the
+// wrapper embeds and compile its entry.
+final defs = engine.compile(
+  TodoApp.slintSource,
+  path: writeSlintTree(TodoApp.slintSource, TodoApp.slintFiles,
+      name: 'todo.slint'),
+);
+final component = defs.single.instantiate() as SkiaSlintComponent; // one per compile
 
-component.setSize(400, 300);
-component.setProperty('value', 42);
-final result = component.invoke('on_click', []);
+final app = TodoApp(component)
+  ..todoModel = [const TodoItem(title: 'buy milk', checked: false)];
 
-final texture = SkiaTextureRenderTarget(component);
-// texture.textureId → Flutter external texture ID (not yet implemented)
+// Physical pixels. The plugin registers the texture; Rust attaches its GPU
+// surface to it.
+final target = await SkiaTextureRenderTarget.create(component, 800, 600);
+// Texture(textureId: target.textureId), and once per frame (a Ticker):
+target.render();
 ```
+
+`create` is the one asynchronous step (a channel round trip). After it,
+`textureId`, `render()`, `resize()` and the pointer/key dispatchers are
+synchronous; `resize()` reallocates the texture in the background and
+`render()` returns false until it lands. Sizes and pointer coordinates are
+physical pixels: Slint's scale factor stays 1, as in `SlintView`.
+`dispose()` detaches the surface, unregisters the texture and disposes the
+component. On a platform without a surface `create` throws
+`UnsupportedError`.
+
+The wrapper's `renderTarget` throws `StateError` for a Skia component — it
+renders to a texture, not a software target — so the frame goes through
+`SkiaTextureRenderTarget`. The component's own
+`getProperty`/`setProperty`/`invokeCallback` are the bridge the generated
+members call; app code uses the members.
 
 ### C
 
 ```c
-slint_skia_engine_t *engine = slint_skia_engine_new();
-slint_skia_definition_t *def = slint_skia_engine_compile(
-    engine, "component { ... }", "/"
-);
-slint_skia_instance_t *inst = slint_skia_instantiate(def);
+void *engine = slint_skia_engine_new();
+void *def = slint_skia_engine_compile(engine, "export component App { }", "app.slint");
+void *inst = slint_skia_instantiate(def);
 
-slint_skia_instance_set_size(inst, 400, 300);
+// Linux shown; each platform has its own attach entry point.
+slint_skia_instance_attach_gl(inst, 400, 300);
+if (slint_skia_instance_render(inst)) {
+  uintptr_t len;
+  const uint8_t *rgba = slint_skia_instance_pixels(inst, &len);
+}
 const char *error = slint_skia_last_error();
 
 slint_skia_instance_free(inst);
+slint_skia_definitions_free(def);
 slint_skia_engine_free(engine);
 ```
 
@@ -133,20 +182,25 @@ slint_skia_engine_free(engine);
 
 ```
 packages/slint_skia/
-├── pubspec.yaml              # Dart package metadata
+├── pubspec.yaml              # Dart package + plugin platforms
 ├── lib/
 │   ├── slint_skia.dart       # Public exports
 │   └── src/
-│       ├── library.dart       # FFI library loader
-│       ├── skia_engine.dart   # Dart implementation
+│       ├── skia_engine.dart   # Engine, component, SkiaTextureRenderTarget
+│       ├── skia_native.dart   # Hand-declared platform-only entry points
 │       └── bindings.g.dart    # Generated (do not edit)
+├── darwin/                   # Swift plugin (iOS + macOS): Metal / IOSurface
+├── android/                  # Java plugin: SurfaceProducer + JNI
+├── windows/                  # C++ plugin: GpuSurfaceTexture (DXGI handle)
+├── linux/                    # C plugin: FlPixelBufferTexture
 ├── rust/
-│   ├── Cargo.toml            # Rust crate metadata
+│   ├── Cargo.toml
 │   ├── src/
-│   │   └── lib.rs            # C ABI implementation
+│   │   ├── lib.rs            # C ABI + the GPU test
+│   │   └── platform/         # Slint platform + metal / android / d3d / gl surfaces
 │   ├── cbindgen.toml         # C header generation config
 │   └── include/
-│       └── slint_skia_ffi.h   # Generated C header
+│       └── slint_skia_ffi.h  # Generated C header
 └── ffigen.yaml               # Dart FFI binding generation config
 ```
 
@@ -157,30 +211,34 @@ packages/slint_skia/
 | Item | Status | Upgrade Trigger |
 |------|--------|-----------------|
 | Definitions enumeration | One per compile; several exported components is an error naming them | Multiple root components |
-| Callback handler | Throws UnimplementedError | Interactivity features |
-| Render to GPU | Returns false | Platform surface available |
-| Texture export | Returns -1 | Full frame pipeline |
+| Callback handler | Throws `UnimplementedError` | Interactivity features (needs an event loop) |
+| GPU rendering | Real on iOS, macOS, Android, Windows, Linux; built and tested only in CI (`skia-*` jobs) | — |
+| Texture export | Real: `SkiaTextureRenderTarget.textureId` | — |
+| Single-buffered texture | Flutter can sample a frame mid-render (tearing), and shows an empty texture right after a resize | Double buffering (two textures, swapped on `frame`) once it shows |
+| CPU sync per frame | Every render waits for the GPU (Metal, D3D12, GL read-back) before Flutter hears of the frame | GPU fences / shared events |
+| Linux read-back | GPU render, `read_pixels`, then one more copy in the plugin, every frame | A GL texture shared with Flutter's context |
+| Linux EGL thread | The EGL context is made current on the Dart thread; if a GLX context is current there, libglvnd refuses (`EGL_BAD_ACCESS`, reported as such) | A dedicated render thread |
+| Windows handle | Flutter's ANGLE (D3D11) opens a D3D12 NT handle without a keyed mutex; proven only in CI | A keyed mutex or a D3D11 texture if ANGLE rejects it |
+| Android surface lifecycle | `onSurfaceCleanup` reaches Dart asynchronously, so a frame can target a surface being torn down; the `SurfaceProducer` callbacks need Flutter 3.27+ | A synchronous detach on the platform thread |
+| Android renderer | Slint's GL/EGL surface: Slint 1.17.1's `VulkanSurface` has no Android NDK arm | A Slint release with Vulkan on Android |
+| Keyboard in `examples/todo_skia` | Pointer only | `SlintView`'s focus + text input pattern, once typing matters |
+| Dart bindings | Platform-only entry points hand-declared in `skia_native.dart`; `bindings.g.dart` stale until ffigen runs | Regenerate with ffigen |
+| Scale factor | Stays 1; sizes and pointer coordinates are physical pixels | Wire `set_scale_factor` |
 
 ---
 
 ## Testing & Verification
 
-**Cannot test locally** without Skia build (use CI with cached artifacts).
-
-**Verification steps** (CI-only):
+**Default CI does not compile Skia; the `skia-*` jobs do.** Everyday local
+checks for `examples/todo_skia`:
 
 ```bash
-# In CI with Skia pre-cached:
-cd packages/slint_skia/rust
-cargo metadata --format-version 1 > /dev/null  # Verify deps resolve
-cbindgen --output include/slint_skia_ffi.h    # Verify C generation
-
-# Dart side:
-cd ..
-dart pub get
-dart format --set-exit-if-changed lib/
-# (do NOT run `dart analyze` or `ffigen` — handled by CI)
+cd examples/todo_skia && dart run build_runner build
+dart analyze .
 ```
+
+A full `flutter run` / `flutter test` compiles Skia through this package's
+hook — optional, slow, and not part of `melos run check`.
 
 ---
 
@@ -190,7 +248,10 @@ dart format --set-exit-if-changed lib/
 - All Rust errors → thread-local string; Dart sees them in `_getLastError()`.
 - C ABI prefix is `slint_skia_*` (not `slint_interpreter_*`; namespaces are separate).
 - Pointer safety: `nullptr` checks are in FFI bindings (Dart side), Rust validates all inputs.
+- The channel protocol has five ends (`skia_engine.dart` and the four
+  plugins): change them together.
 
 ---
 
-**Status**: Honest skeleton. Real interpreter plumbing; GPU surface plumbing deferred to per-platform work.
+**Status**: interpreter plumbing and the GPU path are real on every
+platform, verified in CI only; callbacks are the next step.

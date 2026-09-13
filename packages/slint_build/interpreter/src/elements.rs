@@ -26,7 +26,7 @@ impl Instance {
         kind: &str,
         needle: Option<&str>,
     ) -> Result<Vec<ElementHandle>, String> {
-        let root = &self.0;
+        let root = &self.inner;
         let needle =
             || needle.ok_or_else(|| format!("query kind '{kind}' needs a value to match against"));
         match kind {

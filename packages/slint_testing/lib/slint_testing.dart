@@ -7,5 +7,4 @@
 library;
 
 export 'src/element_info.dart' show SlintElementInfo;
-export 'src/testing.dart'
-    show SlintCall, SlintElement, SlintTestApp, SlintTestException;
+export 'src/testing.dart' show SlintElement, SlintTestApp, SlintTestException;

@@ -1,9 +1,7 @@
-import { Button, CheckBox, LineEdit, ListView, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { TodoItem, TodoView } from "../../todo_shared/ui/todo_view.slint";
 
-export struct TodoItem {
-    title: string,
-    checked: bool,
-}
+// Re-exported: the generated Dart and the AOT glue name the row type.
+export { TodoItem }
 
 // Deliberately unreferenced by the Dart code: exists to prove the release
 // link hook tree-shakes components without a recorded use out of the dylib.
@@ -34,32 +32,12 @@ export component TodoApp inherits Window {
     callback toggle-todo(index: int, checked: bool);
     callback remove-done();
 
-    VerticalBox {
-        HorizontalBox {
-            padding: 0;
-            edit := LineEdit {
-                placeholder-text: "What needs to be done?";
-                accepted(text) => { root.add-todo(text); self.text = ""; }
-            }
-            Button {
-                text: "Add";
-                primary: true;
-                clicked => { root.add-todo(edit.text); edit.text = ""; }
-            }
-        }
-        ListView {
-            for item[index] in root.todo-model: HorizontalBox {
-                padding: 0;
-                CheckBox {
-                    text: item.title;
-                    checked: item.checked;
-                    toggled => { root.toggle-todo(index, self.checked); }
-                }
-            }
-        }
-        Button {
-            text: "Remove done items";
-            clicked => { root.remove-done(); }
-        }
+    // The list itself is shared with the other example:
+    // examples/todo_shared/ui/todo_view.slint.
+    TodoView {
+        todo-model: root.todo-model;
+        add-todo(title) => { root.add-todo(title); }
+        toggle-todo(index, checked) => { root.toggle-todo(index, checked); }
+        remove-done => { root.remove-done(); }
     }
 }

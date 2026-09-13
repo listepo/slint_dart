@@ -53,12 +53,13 @@ ffi.Pointer<ffi.Char> kind,
 ffi.Pointer<ffi.Char> needle,
 );
 
-/// Starts recording invocations of `name` into the call log. Tests assert on
-/// the log instead of registering a Dart closure, which keeps the whole
-/// surface synchronous and free of callback trampolines.
-@ffi.Native<ffi.Bool Function(SlintTestingApp , ffi.Pointer<ffi.Char> )>()
-external bool slint_testing_app_record(SlintTestingApp app,
+/// Routes invocations of the callback `name` to `cb`, replacing whatever
+/// handler the component had. `user_data` is handed back to `cb` untouched.
+@ffi.Native<ffi.Bool Function(SlintTestingApp , ffi.Pointer<ffi.Char> , SlintTestingCallbackFn , ffi.Pointer<ffi.Void> )>()
+external bool slint_testing_app_set_callback(SlintTestingApp app,
 ffi.Pointer<ffi.Char> name,
+SlintTestingCallbackFn cb,
+ffi.Pointer<ffi.Void> user_data,
 );
 
 @ffi.Native<ffi.Bool Function(SlintTestingApp , ffi.Pointer<ffi.Char> , ffi.Pointer<ffi.Char> )>()
@@ -75,10 +76,11 @@ int index,
 ffi.Pointer<ffi.Char> value,
 );
 
-/// Drains the call log as a JSON array of `{"name": …, "args": […]}`.
-/// Caller frees with [slint_testing_string_free].
-@ffi.Native<ffi.Pointer<ffi.Char> Function(SlintTestingApp )>()
-external ffi.Pointer<ffi.Char> slint_testing_app_take_calls(SlintTestingApp app,
+/// Sets the return value of the host callback running right now, as JSON.
+/// Only meaningful from inside a [SlintTestingCallbackFn]; the string is
+/// copied, so the caller keeps ownership. Null clears it.
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char> )>()
+external void slint_testing_callback_set_result(ffi.Pointer<ffi.Char> json,
 );
 
 /// Advances the testing backend's mock clock, driving animations and timers.
@@ -95,6 +97,13 @@ external void slint_testing_string_free(ffi.Pointer<ffi.Char> s,
 );
 
 typedef SlintTestingApp = ffi.Pointer<ffi.Void>;
+/// A host callback: `args_json` is the call's arguments as a JSON array,
+/// valid only while it runs. The host reports a return value through
+/// [slint_testing_callback_set_result] before returning; without one the
+/// callback returns the declared type's default.
+typedef SlintTestingCallbackFn = ffi.Pointer<ffi.NativeFunction<SlintTestingCallbackFnFunction>>;
+typedef SlintTestingCallbackFnFunction = ffi.Void Function(ffi.Pointer<ffi.Void> user_data, ffi.Pointer<ffi.Char> args_json);
+typedef DartSlintTestingCallbackFnFunction = void Function(ffi.Pointer<ffi.Void> user_data, ffi.Pointer<ffi.Char> args_json);
 final class __arm_legacy_debug_state extends ffi.Struct{
 @ffi.Array.multi([16])
   external ffi.Array<__uint32_t> __bvr;

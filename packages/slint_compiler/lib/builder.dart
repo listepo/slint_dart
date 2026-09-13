@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:build/build.dart';
-import 'package:slint_build/slint_build.dart' show packageRootFromConfig;
+import 'package:slint_build/slint_build.dart' show stagedCargoManifest;
 import 'package:slint_generator/builder.dart' show slintStem;
 import 'package:slint_generator/slint_generator.dart';
 
@@ -16,6 +16,13 @@ import 'src/generator.dart';
 Builder slintAotBuilder(BuilderOptions options) => _SlintAotBuilder();
 
 class _SlintAotBuilder implements Builder {
+  Uri? _introspectManifest;
+
+  Uri _introspectManifestPath() => _introspectManifest ??= stagedCargoManifest(
+    findPackageConfigFrom(Directory.current),
+    'slint_generator',
+  );
+
   @override
   final Map<String, List<String>> buildExtensions = const {
     '^ui/{{}}.slint': ['lib/{{}}.aot.g.dart'],
@@ -26,16 +33,12 @@ class _SlintAotBuilder implements Builder {
     final input = buildStep.inputId;
     await buildStep.readAsString(input); // dependency tracking
 
-    // build_runner runs from the package root; resolve the introspect tool
-    // through the package config (Isolate.resolvePackageUri is unavailable in
-    // the AOT-compiled build script).
-    final generatorRoot = packageRootFromConfig(
-      findPackageConfigFrom(Directory.current),
-      'slint_generator',
-    );
+    // build_runner runs from the package root; the introspect tool builds in
+    // the Cargo workspace staged for its package config (the isolate's own is
+    // unavailable in the AOT-compiled build script).
     final schema = await introspectSlint(
       File(input.path).absolute.path,
-      introspectManifest: generatorRoot.resolve('rust/Cargo.toml'),
+      introspectManifest: _introspectManifestPath(),
     );
 
     final assetLibraryPath = '${slintStem(input)}.aot.g.dart';

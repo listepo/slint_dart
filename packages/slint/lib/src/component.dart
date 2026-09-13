@@ -13,14 +13,6 @@ abstract interface class SlintComponentDefinition {
 
 typedef SlintCallbackHandler = Object? Function(List<Object?> arguments);
 
-/// Reads a `.slint` asset and instantiates a component from it, for
-/// [SlintComponent.loadAsset]. Implemented by backends that compile at
-/// runtime.
-typedef SlintComponentLoader = Future<SlintSoftwareComponent> Function(
-  String path,
-  String? component,
-);
-
 /// A live component instance.
 ///
 /// Mirrors `slint_interpreter::ComponentInstance`. Property and callback
@@ -42,8 +34,8 @@ abstract interface class SlintComponent {
   /// per component, not per file, so a component the app never registers is
   /// still tree-shaken out of a release build.
   ///
-  /// [path] must be a single `.slint` file. For one no wrapper was generated
-  /// from, see [loadAsset], which reads the bundle and needs the interpreter.
+  /// [path] must be a single `.slint` file. Every `.slint` an app loads has a
+  /// generated wrapper: loading one always yields the typed Dart side of it.
   static T load<T extends SlintComponent>(String path, {String? component}) {
     if (!path.endsWith('.slint')) {
       throw ArgumentError.value(path, 'path', 'not a .slint file');
@@ -53,14 +45,18 @@ abstract interface class SlintComponent {
       throw StateError(
         "SlintComponent.load('$path'): nothing is registered for that path. "
         "Call the generated wrapper's register() first — TodoApp.register() "
-        'for a TodoApp — or loadAsset() for a bundled .slint.',
+        'for a TodoApp.',
       );
     }
     final _Registration entry;
     if (component != null) {
-      entry = registered[component] ??
-          (throw ArgumentError.value(component, 'component',
-              "'$path' registers ${_names(registered)}"));
+      entry =
+          registered[component] ??
+          (throw ArgumentError.value(
+            component,
+            'component',
+            "'$path' registers ${_names(registered)}",
+          ));
     } else if (registered.length == 1) {
       entry = registered.values.single;
     } else {
@@ -91,7 +87,11 @@ abstract interface class SlintComponent {
     String component,
     T Function() create,
   ) {
-    (_registry[path] ??= {})[component] = (name: component, type: T, create: create);
+    (_registry[path] ??= {})[component] = (
+      name: component,
+      type: T,
+      create: create,
+    );
   }
 
   /// Forgets everything registered for [path].
@@ -101,47 +101,6 @@ abstract interface class SlintComponent {
 
   static String _names(Map<String, _Registration> registered) =>
       (registered.keys.toList()..sort()).join(', ');
-
-  /// Loads a `.slint` asset and instantiates a component from it.
-  ///
-  /// [path] is an asset key, so the file must be declared under
-  /// `flutter: assets:` — and therefore ships in every build mode. This is
-  /// for a `.slint` the app means to ship and compile at runtime; a generated
-  /// wrapper already carries its own source and bundles nothing — register it
-  /// and use [load].
-  ///
-  /// [component] names which exported component to instantiate and may be
-  /// omitted when the file exports exactly one — the compiler returns
-  /// components unordered, so with several exports there is no meaningful
-  /// "first" to fall back on.
-  ///
-  /// Reading a `.slint` file at runtime means compiling it at runtime, so this
-  /// needs a backend that can: `slint_interpreter` registers itself the first
-  /// time you touch it, or call its `useSlintInterpreter()` at startup. The
-  /// AOT backend that ships in release compiles components at build time and
-  /// has no runtime compiler, so this is interpreter-only.
-  ///
-  /// ```dart
-  /// final component = await SlintComponent.loadAsset('assets/ui/todo.slint');
-  /// runApp(SlintView(target: component.renderTarget));
-  /// ```
-  static Future<SlintSoftwareComponent> loadAsset(String path,
-      {String? component}) {
-    final loader = SlintComponent.loader;
-    if (loader == null) {
-      throw StateError(
-        "SlintComponent.loadAsset('$path') has no backend that can compile at "
-        'runtime. Depend on slint_interpreter and call useSlintInterpreter() '
-        'before loading, or register a generated wrapper and use load().',
-      );
-    }
-    return loader(path, component);
-  }
-
-  /// The backend [loadAsset] goes through. Set by whichever package can compile
-  /// `.slint` source at runtime; reading an asset is its job too, which keeps
-  /// this file free of any Flutter import.
-  static SlintComponentLoader? loader;
 
   Object? getProperty(String name);
 

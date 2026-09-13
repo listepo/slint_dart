@@ -5,6 +5,12 @@ license: Apache-2.0
 homepage: https://github.com/listepo/slint_dart
 repository: https://github.com/listepo/slint_dart/tree/main/packages/slint_patrol
 issue_tracker: https://github.com/listepo/slint_dart/issues
+topics:
+  - slint
+  - patrol
+  - testing
+  - integration-testing
+  - accessibility
 resolution: workspace
 
 environment:

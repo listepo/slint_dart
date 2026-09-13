@@ -11,8 +11,15 @@ import 'package:slint_compiler/runtime.dart';
 @ffi.Native<ffi.Pointer<ffi.Char> Function()>(symbol: 'slint_aot_last_error')
 external ffi.Pointer<ffi.Char> _lastError();
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_string_free')
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char>)>(
+  symbol: 'slint_aot_string_free',
+)
 external void _stringFree(ffi.Pointer<ffi.Char> s);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char>)>(
+  symbol: 'slint_aot_callback_set_result',
+)
+external void _callbackSetResult(ffi.Pointer<ffi.Char> json);
 
 // === TodoApp ===
 
@@ -23,32 +30,107 @@ external void _stringFree(ffi.Pointer<ffi.Char> s);
 @ffi.Native<ffi.Pointer<ffi.Void> Function()>(symbol: 'slint_aot_todo_app_new')
 external ffi.Pointer<ffi.Void> _todoAppNew();
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>(symbol: 'slint_aot_todo_app_free')
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>(
+  symbol: 'slint_aot_todo_app_free',
+)
 external void _todoAppFree(ffi.Pointer<ffi.Void> handle);
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32)>(symbol: 'slint_aot_todo_app_set_size')
-external void _todoAppSetSize(ffi.Pointer<ffi.Void> handle, int width, int height);
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32)>(
+  symbol: 'slint_aot_todo_app_set_size',
+)
+external void _todoAppSetSize(
+  ffi.Pointer<ffi.Void> handle,
+  int width,
+  int height,
+);
 
-@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, ffi.Size)>(symbol: 'slint_aot_todo_app_render')
-external bool _todoAppRender(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Uint8> buffer, int len);
+@ffi.Native<
+  ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, ffi.Size)
+>(symbol: 'slint_aot_todo_app_render')
+external bool _todoAppRender(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Uint8> buffer,
+  int len,
+);
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Uint8, ffi.Float, ffi.Float, ffi.Uint8, ffi.Float, ffi.Float)>(symbol: 'slint_aot_todo_app_pointer_event')
-external void _todoAppPointerEvent(ffi.Pointer<ffi.Void> handle, int kind, double x, double y, int button, double dx, double dy);
+@ffi.Native<
+  ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Uint8,
+    ffi.Float,
+    ffi.Float,
+    ffi.Uint8,
+    ffi.Float,
+    ffi.Float,
+  )
+>(symbol: 'slint_aot_todo_app_pointer_event')
+external void _todoAppPointerEvent(
+  ffi.Pointer<ffi.Void> handle,
+  int kind,
+  double x,
+  double y,
+  int button,
+  double dx,
+  double dy,
+);
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Bool)>(symbol: 'slint_aot_todo_app_key_event')
-external void _todoAppKeyEvent(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> text, bool pressed);
+@ffi.Native<
+  ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Bool)
+>(symbol: 'slint_aot_todo_app_key_event')
+external void _todoAppKeyEvent(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> text,
+  bool pressed,
+);
 
-@ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_todo_app_get_property')
-external ffi.Pointer<ffi.Char> _todoAppGetProperty(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name);
+@ffi.Native<
+  ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+>(symbol: 'slint_aot_todo_app_get_property')
+external ffi.Pointer<ffi.Char> _todoAppGetProperty(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> name,
+);
 
-@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_todo_app_set_property')
-external bool _todoAppSetProperty(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.Char> json);
+@ffi.Native<
+  ffi.Bool Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.Char>,
+  )
+>(symbol: 'slint_aot_todo_app_set_property')
+external bool _todoAppSetProperty(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> name,
+  ffi.Pointer<ffi.Char> json,
+);
 
-@ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_todo_app_invoke')
-external ffi.Pointer<ffi.Char> _todoAppInvoke(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.Char> argsJson);
+@ffi.Native<
+  ffi.Pointer<ffi.Char> Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.Char>,
+  )
+>(symbol: 'slint_aot_todo_app_invoke')
+external ffi.Pointer<ffi.Char> _todoAppInvoke(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> name,
+  ffi.Pointer<ffi.Char> argsJson,
+);
 
-@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>>, ffi.Pointer<ffi.Void>)>(symbol: 'slint_aot_todo_app_set_callback')
-external bool _todoAppSetCallback(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>> cb, ffi.Pointer<ffi.Void> userData);
+@ffi.Native<
+  ffi.Bool Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>>,
+    ffi.Pointer<ffi.Void>,
+  )
+>(symbol: 'slint_aot_todo_app_set_callback')
+external bool _todoAppSetCallback(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> name,
+  ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>> cb,
+  ffi.Pointer<ffi.Void> userData,
+);
 
 /// AOT backend for `TodoApp`: instantiates the slint-build compiled component
 /// from the app's `slint-dart-aot` code asset, no interpreter involved.
@@ -60,6 +142,7 @@ final todoAppFactory = SlintCompilerFactory(
   ops: SlintComponentOps(
     lastError: _lastError,
     stringFree: _stringFree,
+    callbackSetResult: _callbackSetResult,
     create: _todoAppNew,
     free: _todoAppFree,
     setSize: _todoAppSetSize,
@@ -79,35 +162,112 @@ final todoAppFactory = SlintCompilerFactory(
 // sees a recorded use exactly when this component is reachable — and drops
 // its native code from the dylib when it is not.
 @RecordUse()
-@ffi.Native<ffi.Pointer<ffi.Void> Function()>(symbol: 'slint_aot_unused_gadget_new')
+@ffi.Native<ffi.Pointer<ffi.Void> Function()>(
+  symbol: 'slint_aot_unused_gadget_new',
+)
 external ffi.Pointer<ffi.Void> _unusedGadgetNew();
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>(symbol: 'slint_aot_unused_gadget_free')
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>)>(
+  symbol: 'slint_aot_unused_gadget_free',
+)
 external void _unusedGadgetFree(ffi.Pointer<ffi.Void> handle);
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32)>(symbol: 'slint_aot_unused_gadget_set_size')
-external void _unusedGadgetSetSize(ffi.Pointer<ffi.Void> handle, int width, int height);
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32)>(
+  symbol: 'slint_aot_unused_gadget_set_size',
+)
+external void _unusedGadgetSetSize(
+  ffi.Pointer<ffi.Void> handle,
+  int width,
+  int height,
+);
 
-@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, ffi.Size)>(symbol: 'slint_aot_unused_gadget_render')
-external bool _unusedGadgetRender(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Uint8> buffer, int len);
+@ffi.Native<
+  ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, ffi.Size)
+>(symbol: 'slint_aot_unused_gadget_render')
+external bool _unusedGadgetRender(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Uint8> buffer,
+  int len,
+);
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Uint8, ffi.Float, ffi.Float, ffi.Uint8, ffi.Float, ffi.Float)>(symbol: 'slint_aot_unused_gadget_pointer_event')
-external void _unusedGadgetPointerEvent(ffi.Pointer<ffi.Void> handle, int kind, double x, double y, int button, double dx, double dy);
+@ffi.Native<
+  ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Uint8,
+    ffi.Float,
+    ffi.Float,
+    ffi.Uint8,
+    ffi.Float,
+    ffi.Float,
+  )
+>(symbol: 'slint_aot_unused_gadget_pointer_event')
+external void _unusedGadgetPointerEvent(
+  ffi.Pointer<ffi.Void> handle,
+  int kind,
+  double x,
+  double y,
+  int button,
+  double dx,
+  double dy,
+);
 
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Bool)>(symbol: 'slint_aot_unused_gadget_key_event')
-external void _unusedGadgetKeyEvent(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> text, bool pressed);
+@ffi.Native<
+  ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Bool)
+>(symbol: 'slint_aot_unused_gadget_key_event')
+external void _unusedGadgetKeyEvent(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> text,
+  bool pressed,
+);
 
-@ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_unused_gadget_get_property')
-external ffi.Pointer<ffi.Char> _unusedGadgetGetProperty(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name);
+@ffi.Native<
+  ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+>(symbol: 'slint_aot_unused_gadget_get_property')
+external ffi.Pointer<ffi.Char> _unusedGadgetGetProperty(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> name,
+);
 
-@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_unused_gadget_set_property')
-external bool _unusedGadgetSetProperty(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.Char> json);
+@ffi.Native<
+  ffi.Bool Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.Char>,
+  )
+>(symbol: 'slint_aot_unused_gadget_set_property')
+external bool _unusedGadgetSetProperty(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> name,
+  ffi.Pointer<ffi.Char> json,
+);
 
-@ffi.Native<ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>)>(symbol: 'slint_aot_unused_gadget_invoke')
-external ffi.Pointer<ffi.Char> _unusedGadgetInvoke(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.Char> argsJson);
+@ffi.Native<
+  ffi.Pointer<ffi.Char> Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.Char>,
+  )
+>(symbol: 'slint_aot_unused_gadget_invoke')
+external ffi.Pointer<ffi.Char> _unusedGadgetInvoke(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> name,
+  ffi.Pointer<ffi.Char> argsJson,
+);
 
-@ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>>, ffi.Pointer<ffi.Void>)>(symbol: 'slint_aot_unused_gadget_set_callback')
-external bool _unusedGadgetSetCallback(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Char> name, ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>> cb, ffi.Pointer<ffi.Void> userData);
+@ffi.Native<
+  ffi.Bool Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>>,
+    ffi.Pointer<ffi.Void>,
+  )
+>(symbol: 'slint_aot_unused_gadget_set_callback')
+external bool _unusedGadgetSetCallback(
+  ffi.Pointer<ffi.Void> handle,
+  ffi.Pointer<ffi.Char> name,
+  ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>> cb,
+  ffi.Pointer<ffi.Void> userData,
+);
 
 /// AOT backend for `UnusedGadget`: instantiates the slint-build compiled component
 /// from the app's `slint-dart-aot` code asset, no interpreter involved.
@@ -119,6 +279,7 @@ final unusedGadgetFactory = SlintCompilerFactory(
   ops: SlintComponentOps(
     lastError: _lastError,
     stringFree: _stringFree,
+    callbackSetResult: _callbackSetResult,
     create: _unusedGadgetNew,
     free: _unusedGadgetFree,
     setSize: _unusedGadgetSetSize,

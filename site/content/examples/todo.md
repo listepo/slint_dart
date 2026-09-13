@@ -33,12 +33,18 @@ cd examples/todo && dart run build_runner build
 
 The `.slint` lives in `ui/`, outside `lib/`: it is not Dart and must never
 ship, and build_runner only looks there because `build.yaml` lists `ui/**`
-as a source. Two files land in `lib/`, both regenerated after editing
-`ui/todo.slint`:
+as a source.
+
+`ui/todo.slint` holds only the window: it imports `TodoItem` and `TodoView`
+(the input, the list and its buttons) from
+`examples/todo_shared/ui/todo_view.slint`, the list UI `examples/todo_skia`
+shows too, and forwards `todo-model` and the three callbacks. Two files land
+in `lib/`, both regenerated after editing either `.slint`:
 
 - `lib/todo.g.dart` — `slint_generator`: the typed `TodoApp` (properties,
   callbacks, render target), the `TodoItem` value class generated from the
-  `.slint` struct, plus the embedded source. Backend-agnostic — `main.dart`
+  `.slint` struct, plus the embedded source and, as `slintFiles`, the
+  `todo_view.slint` it imports. Backend-agnostic — `main.dart`
   keeps the list in the shared `TodoStore` (`examples/todo_shared`) and maps
   it to `TodoItem` only at the Slint boundary, never touching a raw map.
 - `lib/todo.aot.g.dart` — `slint_compiler`: the `@Native` externs and
@@ -73,10 +79,12 @@ dead code. That is also why `pubspec.yaml` declares no `flutter: assets:`
 entry: Flutter declares assets per package, not per build mode, so anything
 listed there for debug convenience would ride along into release.
 
-`SlintComponent.loadAsset('assets/ui/todo.slint')` is the other direction: read a
-`.slint` the app ships on purpose and compile it at runtime. Interpreter
-only — an AOT binary has no compiler to hand the source to — and async,
-because reading the bundle is.
+The import resolves in both modes: the interpreter factory writes the
+embedded source and `slintFiles` into a temporary tree and compiles there,
+and the AOT build compiles `ui/todo.slint` at its absolute path, with the
+shared file as a hook dependency. There is no other way in: a `.slint` is
+only ever loaded through its generated wrapper, and the app reaches Slint
+only through its typed members (`todoModel`, `onAddTodo`, ...).
 
 ### Interpreter — debug builds
 
@@ -92,10 +100,11 @@ cd examples/todo && mise exec -- flutter run
 
 The list itself lives in `examples/todo_shared`: `TodoStore` owns the
 add/toggle/remove-done rules (trim-on-add, ignore-empty, bounds-checked
-toggle), the seed list, and the AppBar title helper, unit-tested under
-`dart test`. `main.dart` only maps `TodoStore.items` to the generated
-`TodoItem` in `_sync()` — the same store `examples/todo_skia` drives, so a
-rule change lands in both apps at once.
+toggle), the seed list, and the AppBar title helper; `TodoPageStateMixin`
+owns the callbacks, sync and Scaffold. `main.dart` only loads the component
+and maps `TodoStore.items` to the generated `TodoItem` in `pushTodos` — the
+same store, page and list UI `examples/todo_skia` uses, so a change lands in
+both apps at once.
 
 ### Compiled — release/profile builds
 
@@ -154,9 +163,21 @@ Both backends are tested:
 cd examples/todo && mise exec -- flutter test
 ```
 
+All of them go through the generated `TodoApp`; none names a Slint property
+or callback.
+
 - `test/todo_typed_test.dart` — the generated `TodoApp` over the interpreter
   factory
-- `test/todo_smoke_test.dart` — the untyped `slint_interpreter` API directly
+- `test/todo_smoke_test.dart` — the interpreter engine compiling
+  `ui/todo.slint` at its real path, the raw instance wrapped in `TodoApp`
+- `test/todo_load_test.dart` — `SlintComponent.load` and per-component
+  registration
+- `test/todo_patrol_test.dart` — end to end through the real `TodoPage`
+  with `slint_patrol`: typing and tapping on the shared `TodoView`
+  (`TodoView::edit`, `Add`, the checkbox, `Remove done items`), state read
+  back through `TodoApp($.slintComponent())`
+- `test/codegen_up_to_date_test.dart` — the embedded source and
+  `todo_view.slint` copy still match the files on disk
 - `test/todo_compiled_smoke_test.dart` — the same `TodoApp` over the AOT
   factory; self-skips under `flutter test` (always debug, so the AOT dylib
   isn't built) and runs when the AOT asset is present. `flutter build macos

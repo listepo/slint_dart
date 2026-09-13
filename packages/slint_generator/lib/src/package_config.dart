@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:build/build.dart';
+import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 /// The regular (non-dev) dependencies declared in [pubspecYaml].
@@ -39,4 +42,42 @@ Uri findPackageConfigFrom(Directory from) {
     }
     dir = parent;
   }
+}
+
+/// Maps an on-disk [absolutePath] to a build_runner [AssetId] when it lives
+/// inside a package from [packageConfig].
+AssetId? assetIdForAbsolutePath(Uri packageConfig, String absolutePath) {
+  final normalized = p.normalize(File(absolutePath).resolveSymbolicLinksSync());
+  for (final entry in _readPackageConfig(packageConfig)) {
+    final name = entry['name'] as String;
+    final rootPath = p.normalize(
+      File.fromUri(packageRootFromConfig(packageConfig, name))
+          .resolveSymbolicLinksSync(),
+    );
+    if (!p.isWithin(rootPath, normalized)) {
+      continue;
+    }
+    final relative = p.split(p.relative(normalized, from: rootPath)).join('/');
+    return AssetId(name, relative);
+  }
+  return null;
+}
+
+Uri packageRootFromConfig(Uri packageConfig, String packageName) {
+  final entry = _readPackageConfig(packageConfig).firstWhere(
+    (pkg) => pkg['name'] == packageName,
+    orElse: () => throw StateError(
+      '$packageName not found in ${packageConfig.toFilePath()}',
+    ),
+  );
+  var rootUri = entry['rootUri'] as String;
+  if (!rootUri.endsWith('/')) rootUri = '$rootUri/';
+  return packageConfig.resolve(rootUri);
+}
+
+List<Map<String, Object?>> _readPackageConfig(Uri packageConfig) {
+  final json = jsonDecode(
+    File.fromUri(packageConfig).readAsStringSync(),
+  ) as Map<String, Object?>;
+  return (json['packages'] as List).cast<Map<String, Object?>>();
 }

@@ -9,7 +9,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 slint-dart-core = { path = "../../slint/rust" }
-slint-dart-interpreter = { path = "../interpreter" }
+slint-dart-interpreter = { path = "../../slint_build/interpreter" }
 slint = { workspace = true, features = ["compat-1-2", "std", "renderer-software", "software-renderer-systemfonts"] }
 
 [lints]

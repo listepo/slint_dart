@@ -10,5 +10,4 @@ dev_dependencies:
   slint_patrol: ^0.0.1
 ```
 
-**Full docs:** see the docs site (`just docs-serve`) — package page under
-Packages, and the [Testing](../../site/content/guides/testing.md) guide.
+**Full docs:** [slint_patrol package page](https://listepo.github.io/slint_dart/packages/slint_patrol/), [Testing guide](https://listepo.github.io/slint_dart/guides/testing/).

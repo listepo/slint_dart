@@ -5,6 +5,8 @@ import 'package:bazel_worker/driver.dart';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 
+import 'cargo_workspace.dart' show cargoLockSeed, stagedCargoManifest;
+
 /// Builds [crateName] with cargo (through a bazel_worker persistent worker)
 /// and bundles the produced cdylib as the code asset
 /// `package:<input.packageName>/<assetName>`.
@@ -76,7 +78,8 @@ typedef CargoBuildResult = ({Uri artifact, String cargoOutput});
 ///
 /// [artifactKind] is `cdylib` (default) or `staticlib` and selects which
 /// cargo artifact is picked up. [extraEnv] is merged over the cross-compile
-/// environment for the cargo invocation.
+/// environment for the cargo invocation. [manifestPath] defaults to the
+/// package's `rust/` crate in the staged workspace (`stageCargoWorkspace`).
 Future<CargoBuildResult> runCargoBuild(
   BuildInput input,
   BuildOutputBuilder output, {
@@ -90,7 +93,11 @@ Future<CargoBuildResult> runCargoBuild(
   final code = input.config.code;
   final triple = rustTriple(code);
   final profile = resolveCargoProfile(input);
-  final manifest = manifestPath ?? input.packageRoot.resolve('rust/Cargo.toml');
+  final packageConfig = findPackageConfig(input);
+  // A package's own crate builds in the staged Cargo workspace, which works
+  // the same from this repo and from the pub cache.
+  final manifest =
+      manifestPath ?? stagedCargoManifest(packageConfig, input.packageName);
 
   final request = WorkRequest(
     arguments: [
@@ -100,14 +107,18 @@ Future<CargoBuildResult> runCargoBuild(
         'targetTriple': triple,
         'cargoProfile': profile == 'debug' ? 'dev' : 'release',
         'artifactKind': artifactKind,
-        'extraEnv': {..._crossCompileEnv(code, triple), ...extraEnv},
+        'extraEnv': {
+          ..._crossCompileEnv(code, triple),
+          ..._mergeExtraEnv(extraEnv),
+        },
       }),
     ],
   );
 
-  final packageConfig = findPackageConfig(input);
-  final workerScript = packageRootFromConfig(packageConfig, 'slint_build')
-      .resolve('bin/cargo_worker.dart');
+  final workerScript = packageRootFromConfig(
+    packageConfig,
+    'slint_build',
+  ).resolve('bin/cargo_worker.dart');
   final dart = _dartExecutable();
   final driver = BazelWorkerDriver(
     () => Process.start(dart, [
@@ -152,9 +163,9 @@ Future<CargoBuildResult> runCargoBuild(
   await bundled.parent.create(recursive: true);
   await artifact.copy(bundled.path);
 
-  for (final uri in _dependencyFiles(input, sourceDirs)) {
-    output.dependencies.add(uri);
-  }
+  output.dependencies.addAll(sourceDependencies(sourceDirs));
+  final lockfile = cargoLockSeed(packageConfig);
+  if (lockfile != null) output.dependencies.add(lockfile.uri);
   output.dependencies.addAll(extraDependencies);
   // The worker script is resolved through the package config, not
   // [sourceDirs], but a syntax error in it surfaces as a hook failure in
@@ -172,9 +183,9 @@ String resolveCargoProfile(BuildInput input) {
     'release' => 'release',
     'debug' || 'dev' => 'debug',
     _ => throw ArgumentError(
-        'Invalid `profile` user-define for ${input.packageName}: "$raw". '
-        'Use "debug" or "release".',
-      ),
+      'Invalid `profile` user-define for ${input.packageName}: "$raw". '
+      'Use "debug" or "release".',
+    ),
   };
 }
 
@@ -185,9 +196,10 @@ String rustTriple(CodeConfig code) {
   final triple = switch ((os, arch)) {
     (OS.macOS, Architecture.arm64) => 'aarch64-apple-darwin',
     (OS.macOS, Architecture.x64) => 'x86_64-apple-darwin',
-    (OS.iOS, Architecture.arm64) => code.iOS.targetSdk == IOSSdk.iPhoneSimulator
-        ? 'aarch64-apple-ios-sim'
-        : 'aarch64-apple-ios',
+    (OS.iOS, Architecture.arm64) =>
+      code.iOS.targetSdk == IOSSdk.iPhoneSimulator
+          ? 'aarch64-apple-ios-sim'
+          : 'aarch64-apple-ios',
     (OS.iOS, Architecture.x64) => 'x86_64-apple-ios',
     (OS.linux, Architecture.arm64) => 'aarch64-unknown-linux-gnu',
     (OS.linux, Architecture.x64) => 'x86_64-unknown-linux-gnu',
@@ -207,15 +219,16 @@ String rustTriple(CodeConfig code) {
   return triple;
 }
 
-
 /// Env-var names cargo and the `cc` crate expect for [triple].
 ///
 /// Exposed for tests: cargo uppercases the triple; `cc` keeps its case.
 ({String cargoLinkerKey, String ccKey, String arKey}) crossCompileEnvKeys(
   String triple,
 ) {
-  final cargoTriple =
-      triple.toUpperCase().replaceAll('-', '_').replaceAll('.', '_');
+  final cargoTriple = triple
+      .toUpperCase()
+      .replaceAll('-', '_')
+      .replaceAll('.', '_');
   final ccTriple = triple.replaceAll('-', '_').replaceAll('.', '_');
   return (
     cargoLinkerKey: 'CARGO_TARGET_${cargoTriple}_LINKER',
@@ -223,6 +236,7 @@ String rustTriple(CodeConfig code) {
     arKey: 'AR_$ccTriple',
   );
 }
+
 Map<String, String> _crossCompileEnv(CodeConfig code, String triple) {
   final env = <String, String>{};
   final os = code.targetOS;
@@ -237,10 +251,12 @@ Map<String, String> _crossCompileEnv(CodeConfig code, String triple) {
       final api = code.android.targetNdkApi;
       // NDK clang wrappers are named after the *clang* triple, which differs
       // from the Rust triple for 32-bit ARM.
-      final clangTriple =
-          triple == 'armv7-linux-androideabi' ? 'armv7a-linux-androideabi' : triple;
+      final clangTriple = triple == 'armv7-linux-androideabi'
+          ? 'armv7a-linux-androideabi'
+          : triple;
       final ext = Platform.isWindows ? '.cmd' : '';
-      final wrapper = '${binDir.path}${Platform.pathSeparator}$clangTriple$api-clang$ext';
+      final wrapper =
+          '${binDir.path}${Platform.pathSeparator}$clangTriple$api-clang$ext';
       // cargo wants CARGO_TARGET_<TRIPLE>_LINKER uppercased with `-`/`.` as `_`.
       // The `cc` crate looks up CC_/AR_ with the target's own case
       // (`CC_aarch64_linux_android`, not `CC_AARCH64_LINUX_ANDROID`).
@@ -256,30 +272,30 @@ Map<String, String> _crossCompileEnv(CodeConfig code, String triple) {
   return env;
 }
 
-Iterable<Uri> _dependencyFiles(BuildInput input, Iterable<Uri> sourceDirs) sync* {
+/// Hook dependencies for [sourceDirs]: every `*.rs` / `*.toml` / `*.slint` /
+/// `*.h` / `*.dart` file, plus every directory. The hooks runner hashes a
+/// directory (a URI ending in `/`) by its entries, so a file added or removed
+/// anywhere below also invalidates the cache — tracking files alone misses a
+/// new `mod` or an `import`ed `.slint` until something else changes. Cargo's
+/// `target/` is its own output and is not walked.
+Iterable<Uri> sourceDependencies(Iterable<Uri> sourceDirs) sync* {
   const exts = ['.rs', '.toml', '.slint', '.h', '.dart'];
-  for (final dirUri in sourceDirs) {
-    final dir = Directory.fromUri(dirUri);
-    if (!dir.existsSync()) continue;
-    for (final entity in dir.listSync(recursive: true, followLinks: false)) {
-      if (entity is! File) continue;
-      final path = entity.path;
-      if (path.contains('${Platform.pathSeparator}target${Platform.pathSeparator}')) {
-        continue;
+  Iterable<Uri> walk(Directory dir) sync* {
+    yield dir.uri;
+    for (final entity in dir.listSync(followLinks: false)) {
+      if (entity is Directory) {
+        if (entity.path.split(Platform.pathSeparator).last != 'target') {
+          yield* walk(entity);
+        }
+      } else if (entity is File && exts.any(entity.path.endsWith)) {
+        yield entity.uri;
       }
-      if (exts.any(path.endsWith)) yield entity.uri;
     }
   }
-  // Workspace Cargo.lock pins crate versions.
-  var dir = Directory.fromUri(input.packageRoot);
-  for (var i = 0; i < 6; i++) {
-    final lock = File('${dir.path}${Platform.pathSeparator}Cargo.lock');
-    if (lock.existsSync()) {
-      yield lock.uri;
-      break;
-    }
-    if (dir.parent.path == dir.path) break;
-    dir = dir.parent;
+
+  for (final dirUri in sourceDirs) {
+    final dir = Directory.fromUri(dirUri);
+    if (dir.existsSync()) yield* walk(dir);
   }
 }
 
@@ -304,11 +320,7 @@ Uri findPackageConfig(BuildInput input) {
 
 /// Root directory of [packageName] according to [packageConfig].
 Uri packageRootFromConfig(Uri packageConfig, String packageName) {
-  final json =
-      jsonDecode(File.fromUri(packageConfig).readAsStringSync())
-          as Map<String, Object?>;
-  final packages = (json['packages'] as List).cast<Map<String, Object?>>();
-  final entry = packages.firstWhere(
+  final entry = _configPackages(packageConfig).firstWhere(
     (p) => p['name'] == packageName,
     orElse: () => throw StateError(
       '$packageName not found in ${packageConfig.toFilePath()}',
@@ -317,6 +329,28 @@ Uri packageRootFromConfig(Uri packageConfig, String packageName) {
   var rootUri = entry['rootUri'] as String;
   if (!rootUri.endsWith('/')) rootUri = '$rootUri/';
   return packageConfig.resolve(rootUri);
+}
+
+/// Whether [packageName] is part of the resolution [packageConfig] describes.
+bool packageInConfig(Uri packageConfig, String packageName) =>
+    _configPackages(packageConfig).any((p) => p['name'] == packageName);
+
+/// How many times [_configPackages] has read disk this process.
+int packageConfigParseCount = 0;
+
+final _packageConfigCache = <String, List<Map<String, Object?>>>{};
+
+List<Map<String, Object?>> _configPackages(Uri packageConfig) {
+  final path = packageConfig.toFilePath();
+  final cached = _packageConfigCache[path];
+  if (cached != null) return cached;
+  packageConfigParseCount++;
+  final json = jsonDecode(
+    File.fromUri(packageConfig).readAsStringSync(),
+  ) as Map<String, Object?>;
+  final packages = (json['packages'] as List).cast<Map<String, Object?>>();
+  _packageConfigCache[path] = packages;
+  return packages;
 }
 
 String _dartExecutable() {
@@ -336,5 +370,65 @@ String _dartExecutable() {
 
 String _tail(String text, int lines) {
   final all = text.split('\n');
-  return all.length <= lines ? text : all.sublist(all.length - lines).join('\n');
+  return all.length <= lines
+      ? text
+      : all.sublist(all.length - lines).join('\n');
+}
+
+/// The package root nearest [input]'s output directory that appears in
+/// [packageConfig] — the app or package Flutter is building.
+Uri findBuildingPackageRoot(BuildInput input, Uri packageConfig) {
+  var dir = Directory.fromUri(input.outputDirectoryShared);
+  for (var i = 0; i < 20; i++) {
+    final pubspec = File.fromUri(dir.uri.resolve('pubspec.yaml'));
+    if (pubspec.existsSync()) {
+      final name = _pubspecName(pubspec.readAsStringSync());
+      if (name != null && packageInConfig(packageConfig, name)) {
+        return dir.uri;
+      }
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) {
+      break;
+    }
+    dir = parent;
+  }
+  return input.packageRoot;
+}
+
+/// Whether [packageRoot]'s pubspec lists [dependency] under dependencies or
+/// dev_dependencies.
+bool packageDependsOn(Uri packageRoot, String dependency) {
+  final pubspec = File.fromUri(packageRoot.resolve('pubspec.yaml'));
+  if (!pubspec.existsSync()) {
+    return false;
+  }
+  final content = pubspec.readAsStringSync();
+  final lines = _pubspecSectionLines(content, 'dependencies');
+  return lines.any((line) => RegExp('^  $dependency:').hasMatch(line));
+}
+
+String? _pubspecName(String content) => RegExp(
+  r'^name:\s*(.+)$',
+  multiLine: true,
+).firstMatch(content)?.group(1)?.trim();
+
+List<String> _pubspecSectionLines(String content, String section) {
+  final match = RegExp(
+    '^$section:\\s*\n((?:  .+\n)*)',
+    multiLine: true,
+  ).firstMatch(content);
+  return match?.group(1)?.split('\n') ?? const [];
+}
+
+Map<String, String> _mergeExtraEnv(Map<String, String> extraEnv) {
+  if (!extraEnv.containsKey('RUSTFLAGS')) {
+    return extraEnv;
+  }
+  final merged = Map<String, String>.from(extraEnv);
+  final existing = Platform.environment['RUSTFLAGS'];
+  if (existing != null && existing.isNotEmpty) {
+    merged['RUSTFLAGS'] = '$existing ${merged['RUSTFLAGS']}'.trim();
+  }
+  return merged;
 }

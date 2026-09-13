@@ -2,3 +2,4 @@
 library;
 
 export 'src/cargo_builder.dart';
+export 'src/cargo_workspace.dart';

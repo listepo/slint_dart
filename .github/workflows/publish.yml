@@ -28,13 +28,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Configures OIDC credentials for subsequent `dart pub publish` calls.
+      # Before flutter-action on purpose: the action that runs last wins PATH,
+      # so `dart` below is Flutter's own SDK (the one the workspace resolves
+      # and validates with) and not a separately installed standalone Dart.
+      - uses: dart-lang/setup-dart@v1
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-
-      # Configures OIDC credentials for subsequent `dart pub publish` calls.
-      - uses: dart-lang/setup-dart@v1
 
       - name: Resolve workspace
         run: dart pub get

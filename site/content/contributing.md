@@ -20,7 +20,7 @@ mise exec -- dart pub get        # resolves the whole workspace, melos included
 
 ```
 pubspec.yaml     pub workspace + melos config (`melos:` key)
-Cargo.toml       Cargo workspace: every crate under packages/*/rust (and slint_interpreter/interpreter)
+Cargo.toml       Cargo workspace: every crate under packages/*/rust (and slint_build/interpreter)
 packages/        the Dart packages, each with its Rust crate(s) inside
 examples/        apps consuming the packages through the workspace
 ```
@@ -45,6 +45,7 @@ mise exec -- dart run melos run analyze        # dart analyze, per package
 mise exec -- dart run melos run test           # Dart packages, then Flutter packages and examples/todo
 mise exec -- dart run melos run codegen        # ui/*.slint → lib/*.g.dart in the examples
 mise exec -- dart run melos run rust:clippy    # every crate except slint-skia-ffi
+mise exec -- dart run melos run rust:test      # cargo test, same exclusion
 mise exec -- dart run melos run check          # everything CI runs
 mise exec -- dart run melos list               # what's in the workspace
 ```
@@ -57,12 +58,22 @@ First runs are slow: `flutter test` and `slint_testing`'s `dart test` build
 their Rust crates through the native-assets hooks (release profile, minutes).
 Nothing needs a manual `cargo build`.
 
-## What never runs locally
+## What default CI skips (Skia)
 
-`slint_skia`'s crate pulls in all of Skia. `cargo build/check/clippy` of
-`slint-skia-ffi`, and `flutter run/build/test` of `examples/todo_skia`, are
-CI-only. The melos scripts already skip them; `dart run build_runner build`
-and `dart analyze .` are the local checks for `todo_skia`.
+`slint_skia`'s crate pulls in all of Skia (10+ GB of artifacts). Default CI
+(`melos run check`, `just check`) excludes `slint-skia-ffi` from
+`cargo clippy` / `cargo test` and `examples/todo_skia` from `flutter test`.
+The `skia-*` jobs in `.github/workflows/ci.yml` compile it instead, one per
+platform family (`skia-apple`, `skia-linux`, `skia-android`, `skia-windows`):
+clippy and the crate's GPU test (a frame rendered into the platform's texture
+and read back) where the runner can run them, and a debug build of
+`examples/todo_skia`, which compiles the `slint_skia` plugin too. They are
+the only place the GPU path is built and checked; no local check builds it.
+
+For `todo_skia` locally, `dart run build_runner build` and `dart analyze .`
+are the everyday checks. `flutter run`, `flutter build`, and `flutter test`
+there compile Skia through `slint_skia`'s hook — optional, slow, and not part
+of the default check.
 
 ## Dead code and size
 
@@ -99,7 +110,10 @@ page has the measured breakdown ("Where the bytes go") and the `cargo bloat` rec
    that package's `AGENTS.md`.
 
 Commit messages follow conventional-commit style (`feat:`, `fix:`, `test:`,
-`docs:`, `refactor:`), imperative subject, body explaining the why.
+`docs:`, `refactor:`), imperative subject, body explaining the why. The
+human is the only author: no `Co-Authored-By` trailer, "Generated with …"
+line or AI agent as author on a commit, merge or PR, whatever a tool
+defaults to.
 
 ## Adding a package
 

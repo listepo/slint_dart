@@ -9,7 +9,9 @@ import 'package:slint_generator/runtime.dart';
 
 /// C signature of the callback trampoline the glue crate invokes.
 typedef SlintAotCallbackNative = ffi.Void Function(
-    ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>);
+  ffi.Pointer<ffi.Void>,
+  ffi.Pointer<ffi.Char>,
+);
 
 /// The C entry points of one AOT-compiled component.
 ///
@@ -20,6 +22,7 @@ final class SlintComponentOps {
   const SlintComponentOps({
     required this.lastError,
     required this.stringFree,
+    required this.callbackSetResult,
     required this.create,
     required this.free,
     required this.setSize,
@@ -34,28 +37,50 @@ final class SlintComponentOps {
 
   final ffi.Pointer<ffi.Char> Function() lastError;
   final void Function(ffi.Pointer<ffi.Char>) stringFree;
+
+  /// Hands the running callback's JSON result to the glue, which copies it.
+  final void Function(ffi.Pointer<ffi.Char>) callbackSetResult;
   final ffi.Pointer<ffi.Void> Function() create;
   final void Function(ffi.Pointer<ffi.Void>) free;
   final void Function(ffi.Pointer<ffi.Void>, int, int) setSize;
-  final bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int) render;
+  final bool Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int)
+  render;
   final void Function(
-      ffi.Pointer<ffi.Void>, int, double, double, int, double, double)
-      pointerEvent;
+    ffi.Pointer<ffi.Void>,
+    int,
+    double,
+    double,
+    int,
+    double,
+    double,
+  )
+  pointerEvent;
   final void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, bool)
-      keyEvent;
+  keyEvent;
   final ffi.Pointer<ffi.Char> Function(
-      ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>) getProperty;
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+  )
+  getProperty;
   final bool Function(
-          ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>)
-      setProperty;
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.Char>,
+  )
+  setProperty;
   final ffi.Pointer<ffi.Char> Function(
-          ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Char>)
-      invoke;
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.Char>,
+  )
+  invoke;
   final bool Function(
-      ffi.Pointer<ffi.Void>,
-      ffi.Pointer<ffi.Char>,
-      ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>>,
-      ffi.Pointer<ffi.Void>) setCallback;
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Char>,
+    ffi.Pointer<ffi.NativeFunction<SlintAotCallbackNative>>,
+    ffi.Pointer<ffi.Void>,
+  )
+  setCallback;
 
   /// Reads and frees the glue crate's thread-local error slot.
   String takeError() {
@@ -108,8 +133,9 @@ final class SlintCompilerFactory extends SlintComponentFactory {
   }
 }
 
-
-class _AotComponent implements SlintSoftwareComponent {
+class _AotComponent
+    with SlintNativeDisposeGuard
+    implements SlintSoftwareComponent {
   _AotComponent(this._handle, this._ops) {
     // Owns no pixel buffer until resized, so creating it up front is free.
     renderTarget = _AotRenderTarget(this);
@@ -128,7 +154,7 @@ class _AotComponent implements SlintSoftwareComponent {
     if (_disposed) throw StateError('Component is disposed');
     final nameC = name.toNativeUtf8();
     try {
-      final p = _ops.getProperty(_handle, nameC.cast());
+      final p = guardNative(() => _ops.getProperty(_handle, nameC.cast()));
       if (p.address == 0) throw StateError(_ops.takeError());
       return jsonDecode(_ops.readString(p));
     } finally {
@@ -142,7 +168,9 @@ class _AotComponent implements SlintSoftwareComponent {
     final nameC = name.toNativeUtf8();
     final jsonC = jsonEncode(value).toNativeUtf8();
     try {
-      if (!_ops.setProperty(_handle, nameC.cast(), jsonC.cast())) {
+      if (!guardNative(
+        () => _ops.setProperty(_handle, nameC.cast(), jsonC.cast()),
+      )) {
         throw StateError(_ops.takeError());
       }
     } finally {
@@ -156,27 +184,46 @@ class _AotComponent implements SlintSoftwareComponent {
     if (_disposed) throw StateError('Component is disposed');
     // Create the trampoline first; only close the old one after native code
     // has the new pointer, so a failed set cannot leave a dangling fn.
-    final callable = ffi.NativeCallable<SlintAotCallbackNative>.isolateLocal(
-      (ffi.Pointer<ffi.Void> userData, ffi.Pointer<ffi.Char> argsJson) {
-        try {
-          // Handler return values ignored; Slint side gets the default value.
-          handler(jsonDecode(argsJson.cast<Utf8>().toDartString())
-              as List<dynamic>);
-        } catch (e, s) {
-          // Cannot unwind through Rust; report through the zone so a bug in
-          // the handler shows up (FlutterError / a failing test) instead of
-          // vanishing.
-          Zone.current.handleUncaughtError(e, s);
-        }
-      },
-    )
-      // The trampoline must not keep a test isolate alive after its
-      // component is gone.
-      ..keepIsolateAlive = false;
+    final callable =
+        ffi.NativeCallable<SlintAotCallbackNative>.isolateLocal((
+            ffi.Pointer<ffi.Void> userData,
+            ffi.Pointer<ffi.Char> argsJson,
+          ) {
+            try {
+              final result = handler(
+                jsonDecode(argsJson.cast<Utf8>().toDartString())
+                    as List<dynamic>,
+              );
+              // The glue copies the result while this call is still running;
+              // no result reads as the declared type's default in Slint.
+              if (result != null) {
+                final resultC = jsonEncode(result).toNativeUtf8();
+                try {
+                  _ops.callbackSetResult(resultC.cast());
+                } finally {
+                  malloc.free(resultC);
+                }
+              }
+            } catch (e, s) {
+              // Cannot unwind through Rust; report through the zone so a bug in
+              // the handler shows up (FlutterError / a failing test) instead of
+              // vanishing.
+              Zone.current.handleUncaughtError(e, s);
+            }
+          })
+          // The trampoline must not keep a test isolate alive after its
+          // component is gone.
+          ..keepIsolateAlive = false;
     final nameC = name.toNativeUtf8();
     try {
-      if (!_ops.setCallback(
-          _handle, nameC.cast(), callable.nativeFunction, ffi.nullptr)) {
+      if (!guardNative(
+        () => _ops.setCallback(
+          _handle,
+          nameC.cast(),
+          callable.nativeFunction,
+          ffi.nullptr,
+        ),
+      )) {
         callable.close();
         throw StateError(_ops.takeError());
       }
@@ -193,7 +240,9 @@ class _AotComponent implements SlintSoftwareComponent {
     final nameC = name.toNativeUtf8();
     final argsC = jsonEncode(arguments).toNativeUtf8();
     try {
-      final p = _ops.invoke(_handle, nameC.cast(), argsC.cast());
+      final p = guardNative(
+        () => _ops.invoke(_handle, nameC.cast(), argsC.cast()),
+      );
       if (p.address == 0) throw StateError(_ops.takeError());
       return jsonDecode(_ops.readString(p));
     } finally {
@@ -202,10 +251,17 @@ class _AotComponent implements SlintSoftwareComponent {
     }
   }
 
+  /// Frees the instance. Safe from inside one of its own callbacks: the
+  /// native side is released once the call that ran the callback returns.
   @override
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    disposeNative();
+  }
+
+  @override
+  void releaseNative() {
     _ops.free(_handle);
     for (final callable in _callbacks.values) {
       callable.close();
@@ -251,6 +307,10 @@ class _AotRenderTarget implements SlintSoftwareRenderTarget {
         (width == _width && height == _height)) {
       return;
     }
+    // A render may be writing into the buffer this would free.
+    if (_component.inNativeCall) {
+      throw StateError('resize() called from inside a Slint callback');
+    }
     _freeBuffer();
     _width = width;
     _height = height;
@@ -259,7 +319,9 @@ class _AotRenderTarget implements SlintSoftwareRenderTarget {
       _pixelBuffer = malloc<ffi.Uint8>(bufferSize);
       _pixels = _pixelBuffer.asTypedList(bufferSize);
     }
-    _component._ops.setSize(_component._handle, width, height);
+    _component.guardNative(
+      () => _component._ops.setSize(_component._handle, width, height),
+    );
   }
 
   @override
@@ -267,20 +329,28 @@ class _AotRenderTarget implements SlintSoftwareRenderTarget {
     if (_disposed || _component._disposed || _pixelBuffer.address == 0) {
       return false;
     }
-    return _component._ops.render(_component._handle, _pixelBuffer, _pixels.length);
+    return _component.guardNative(
+      () => _component._ops.render(
+        _component._handle,
+        _pixelBuffer,
+        _pixels.length,
+      ),
+    );
   }
 
   @override
   void dispatchPointerEvent(SlintPointerEvent event) {
     if (_disposed || _component._disposed) return;
-    _component._ops.pointerEvent(
-      _component._handle,
-      event.kind.index,
-      event.x,
-      event.y,
-      event.button.index,
-      event.scrollDeltaX,
-      event.scrollDeltaY,
+    _component.guardNative(
+      () => _component._ops.pointerEvent(
+        _component._handle,
+        event.kind.index,
+        event.x,
+        event.y,
+        event.button.index,
+        event.scrollDeltaX,
+        event.scrollDeltaY,
+      ),
     );
   }
 
@@ -289,7 +359,13 @@ class _AotRenderTarget implements SlintSoftwareRenderTarget {
     if (_disposed || _component._disposed) return;
     final textC = event.text.toNativeUtf8();
     try {
-      _component._ops.keyEvent(_component._handle, textC.cast(), event.pressed);
+      _component.guardNative(
+        () => _component._ops.keyEvent(
+          _component._handle,
+          textC.cast(),
+          event.pressed,
+        ),
+      );
     } finally {
       malloc.free(textC);
     }
@@ -298,10 +374,12 @@ class _AotRenderTarget implements SlintSoftwareRenderTarget {
   @override
   Uint8List get pixels => _pixels;
 
+  /// Frees the pixel buffer: at once, or with the component when a render
+  /// that may still be writing into it is on the stack.
   @override
   void dispose() {
-    if (_disposed) return;
+    if (_disposed && _pixelBuffer.address == 0) return;
     _disposed = true;
-    _freeBuffer();
+    if (!_component.inNativeCall) _freeBuffer();
   }
 }

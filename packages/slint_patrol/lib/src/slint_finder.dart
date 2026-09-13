@@ -20,7 +20,7 @@ enum SlintMatch {
   /// The accessible label — a button's text, a checkbox's caption.
   label,
 
-  /// An element id qualified by its component, `TodoApp::edit`.
+  /// An element id qualified by its component, `TodoView::edit`.
   id,
 
   /// The element's type, `Button`, `LineEdit`.
@@ -68,12 +68,12 @@ class SlintFinder {
 
   /// Narrows this finder to the element at [index] among the matches.
   SlintFinder at(int index) => SlintFinder(
-        tester: tester,
-        match: match,
-        value: value,
-        view: view,
-        index: index,
-      );
+    tester: tester,
+    match: match,
+    value: value,
+    view: view,
+    index: index,
+  );
 
   /// Narrows this finder to the first match.
   SlintFinder get first => at(0);
@@ -81,12 +81,12 @@ class SlintFinder {
   /// Restricts the search to the [SlintView] found by [view], for a screen
   /// showing more than one.
   SlintFinder inView(Finder view) => SlintFinder(
-        tester: tester,
-        match: match,
-        value: value,
-        view: view,
-        index: index,
-      );
+    tester: tester,
+    match: match,
+    value: value,
+    view: view,
+    index: index,
+  );
 
   Finder get _viewFinder => view ?? find.byType(SlintView);
 
@@ -95,20 +95,23 @@ class SlintFinder {
     final views = tester.tester.widgetList<SlintView>(_viewFinder).toList();
     if (views.isEmpty) {
       throw SlintPatrolException(
-          'no SlintView in the widget tree — pump the app first');
+        'no SlintView in the widget tree — pump the app first',
+      );
     }
     if (views.length > 1 && view == null) {
       throw SlintPatrolException(
-          'the widget tree holds ${views.length} SlintViews — say which one '
-          'with inView()');
+        'the widget tree holds ${views.length} SlintViews — say which one '
+        'with inView()',
+      );
     }
     final component = views.first.target.component;
     if (component is! SlintInspectableComponent) {
       throw SlintPatrolException(
-          'this Slint backend does not support element queries '
-          '(${component.runtimeType}). The interpreter backend does, which is '
-          'what debug builds — including flutter test — use; the AOT backend '
-          'of release and profile builds does not.');
+        'this Slint backend does not support element queries '
+        '(${component.runtimeType}). The interpreter backend does, which is '
+        'what debug builds — including flutter test — use; the AOT backend '
+        'of release and profile builds does not.',
+      );
     }
     return component;
   }
@@ -121,10 +124,11 @@ class SlintFinder {
       SlintMatch.type => component.queryElements('type', value),
       // Slint has no role query; filter the whole tree the way
       // `slint_testing` does.
-      SlintMatch.role => component
-          .queryElements('all')
-          .where((e) => e['role'] == value)
-          .toList(),
+      SlintMatch.role =>
+        component
+            .queryElements('all')
+            .where((e) => e['role'] == value)
+            .toList(),
       SlintMatch.all => component.queryElements('all'),
     };
     final elements = found.map(SlintElementInfo.fromJson).toList();
@@ -156,10 +160,12 @@ class SlintFinder {
       if (found.isNotEmpty && found.every((e) => e.hasSize)) return found;
       await tester.tester.pump(const Duration(milliseconds: 16));
     }
-    throw SlintPatrolException(found.isEmpty
-        ? 'found no Slint element with ${match.name} "$value" within $limit'
-        : 'the Slint element with ${match.name} "$value" is still zero-sized '
-            'after $limit — is it laid out?');
+    throw SlintPatrolException(
+      found.isEmpty
+          ? 'found no Slint element with ${match.name} "$value" within $limit'
+          : 'the Slint element with ${match.name} "$value" is still zero-sized '
+                'after $limit — is it laid out?',
+    );
   }
 
   /// Waits for the single element this finder resolves to.
@@ -170,8 +176,9 @@ class SlintFinder {
     final found = await waitUntilVisible(timeout: timeout);
     if (found.length > 1) {
       throw SlintPatrolException(
-          '${found.length} Slint elements match ${match.name} "$value" — '
-          'narrow with first or at(index): ${found.join(', ')}');
+        '${found.length} Slint elements match ${match.name} "$value" — '
+        'narrow with first or at(index): ${found.join(', ')}',
+      );
     }
     return found.single;
   }
@@ -196,11 +203,12 @@ class SlintFinder {
     final ime = tester.tester.testTextInput;
     if (!ime.hasAnyClients) {
       throw SlintPatrolException(
-          'the tap did not give SlintView a text input connection — is the '
-          'view focusable?');
+        'the tap did not give SlintView a text input connection — is the '
+        'view focusable?',
+      );
     }
-    final current = (ime.editingState?['text'] as String?) ?? '';
-    ime.enterText(current + text);
+    // Replace the field contents rather than append to whatever the IME still holds.
+    ime.updateEditingValue(TextEditingValue(text: text));
     await settle();
   }
 
@@ -224,8 +232,9 @@ class SlintFinder {
   /// own context keeps this in step with whatever [SlintView] used.
   Offset _globalCentre(SlintElementInfo element) {
     final rect = tester.tester.getRect(_viewFinder);
-    final dpr =
-        MediaQuery.devicePixelRatioOf(tester.tester.element(_viewFinder));
+    final dpr = MediaQuery.devicePixelRatioOf(
+      tester.tester.element(_viewFinder),
+    );
     return rect.topLeft +
         Offset(
           (element.x + element.width / 2) / dpr,

@@ -1,4 +1,7 @@
-import 'package:slint_generator/slint_generator.dart';
+import 'dart:io';
+
+import 'package:build/build.dart';
+import 'package:slint_generator/src/package_config.dart';
 import 'package:test/test.dart';
 
 /// The builder decides which backends a wrapper may default to from this. A
@@ -18,25 +21,23 @@ dependencies:
       expect(deps, containsAll(['flutter', 'slint', 'slint_interpreter']));
     });
 
-    test('excludes dev_dependencies', () {
+    test('ignores dev_dependencies', () {
       final deps = runtimeDependencies('''
 name: todo_example
 dependencies:
   slint: ^0.0.1
 dev_dependencies:
   slint_compiler: ^0.0.1
-  test: ^1.25.0
 ''');
       expect(deps, contains('slint'));
       expect(deps, isNot(contains('slint_compiler')));
-      expect(deps, isNot(contains('test')));
     });
 
-    test('handles a pubspec with no dependencies section', () {
+    test('an empty pubspec has no dependencies', () {
       expect(runtimeDependencies('name: bare\nversion: 1.0.0\n'), isEmpty);
     });
 
-    test('handles an empty dependencies section', () {
+    test('dependencies: with no entries is empty', () {
       expect(runtimeDependencies('name: bare\ndependencies:\n'), isEmpty);
     });
 
@@ -48,6 +49,26 @@ dependencies:
   slint: ^0.0.1
 ''');
       expect(deps, isNot(contains('slint_compiler')));
+    });
+  });
+
+  group('assetIdForAbsolutePath', () {
+    test('maps a file in another package to its AssetId', () {
+      final root = Directory.systemTemp.createTempSync('slint_pkgmap_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final sharedRoot = Directory('${root.path}/shared')..createSync();
+      File('${sharedRoot.path}/ui/view.slint').createSync(recursive: true);
+      final config = File('${root.path}/package_config.json')
+        ..writeAsStringSync(
+          '{"configVersion": 2, "packages": ['
+          '{"name": "todo_shared", "rootUri": "shared/"}'
+          ']}',
+        );
+      final id = assetIdForAbsolutePath(
+        config.uri,
+        '${sharedRoot.path}/ui/view.slint',
+      );
+      expect(id, AssetId('todo_shared', 'ui/view.slint'));
     });
   });
 }

@@ -9,6 +9,13 @@
 library;
 
 import 'dart:ffi' as ffi;
+/// Sets the return value of the host callback that is running right now, as
+/// JSON. Only meaningful from inside a [SlintInterpreterCallbackFn]; the
+/// string is copied, so the caller keeps ownership. Null clears it.
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Char> )>()
+external void slint_interpreter_callback_set_result(ffi.Pointer<ffi.Char> json,
+);
+
 @ffi.Native<ffi.Uint32 Function(SlintInterpreterDefinitionList )>()
 external int slint_interpreter_definitions_count(SlintInterpreterDefinitionList list,
 );

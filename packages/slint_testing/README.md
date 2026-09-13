@@ -9,5 +9,4 @@ dev_dependencies:
   slint_testing: ^0.0.1
 ```
 
-**Full docs:** see the docs site (`just docs-serve`) — package page under
-Packages, and the [Testing](../../site/content/guides/testing.md) guide.
+**Full docs:** [slint_testing package page](https://listepo.github.io/slint_dart/packages/slint_testing/), [Testing guide](https://listepo.github.io/slint_dart/guides/testing/).

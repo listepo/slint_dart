@@ -12,7 +12,15 @@ import 'package:slint_generator/runtime.dart';
 /// shaker drops the string with it: the UI source is not in the shipped
 /// binary.
 const _source =
-    "import { Button, CheckBox, LineEdit, ListView, VerticalBox, HorizontalBox } from \"std-widgets.slint\";\n\nexport struct TodoItem {\n    title: string,\n    checked: bool,\n}\n\nexport component TodoApp inherits Window {\n    preferred-width: 400px;\n    preferred-height: 600px;\n    title: \"Slint ♥ Flutter — Todo (Skia)\";\n\n    // Host (Dart) owns the list; this default renders before the host syncs.\n    in property <[TodoItem]> todo-model: [\n        { title: \"Wire Slint into Flutter\", checked: true },\n        { title: \"Render this list\", checked: false },\n    ];\n\n    // Named arguments carry through to the generated Dart signatures.\n    callback add-todo(title: string);\n    callback toggle-todo(index: int, checked: bool);\n    callback remove-done();\n\n    VerticalBox {\n        HorizontalBox {\n            padding: 0;\n            edit := LineEdit {\n                placeholder-text: \"What needs to be done?\";\n                accepted(text) => { root.add-todo(text); self.text = \"\"; }\n            }\n            Button {\n                text: \"Add\";\n                primary: true;\n                clicked => { root.add-todo(edit.text); edit.text = \"\"; }\n            }\n        }\n        ListView {\n            for item[index] in root.todo-model: HorizontalBox {\n                padding: 0;\n                CheckBox {\n                    text: item.title;\n                    checked: item.checked;\n                    toggled => { root.toggle-todo(index, self.checked); }\n                }\n            }\n        }\n        Button {\n            text: \"Remove done items\";\n            clicked => { root.remove-done(); }\n        }\n    }\n}\n";
+    "import { TodoItem, TodoView } from \"../../todo_shared/ui/todo_view.slint\";\n\n// Re-exported: the generated Dart and the AOT glue name the row type.\nexport { TodoItem }\n\nexport component TodoApp inherits Window {\n    preferred-width: 400px;\n    preferred-height: 600px;\n    title: \"Slint ♥ Flutter — Todo (Skia)\";\n\n    // Host (Dart) owns the list; this default renders before the host syncs.\n    in property <[TodoItem]> todo-model: [\n        { title: \"Wire Slint into Flutter\", checked: true },\n        { title: \"Render this list\", checked: false },\n    ];\n\n    // Named arguments carry through to the generated Dart signatures.\n    callback add-todo(title: string);\n    callback toggle-todo(index: int, checked: bool);\n    callback remove-done();\n\n    // The list itself is shared with the other example:\n    // examples/todo_shared/ui/todo_view.slint.\n    TodoView {\n        todo-model: root.todo-model;\n        add-todo(title) => { root.add-todo(title); }\n        toggle-todo(index, checked) => { root.toggle-todo(index, checked); }\n        remove-done => { root.remove-done(); }\n    }\n}\n";
+
+/// What `todo.slint` reads besides itself — `import`ed `.slint` files and
+/// `@image-url` resources — base64 by path relative to it, so the interpreter
+/// is handed the same tree. Like the source above, named only where the
+/// interpreter factory is built.
+const _files = <String, String>{
+  "../../todo_shared/ui/todo_view.slint": "Ly8gVGhlIHRvZG8gbGlzdCBVSSBib3RoIGV4YW1wbGVzIHNob3c6IGV4YW1wbGVzL3RvZG8gKGludGVycHJldGVyICsgQU9UKSBhbmQKLy8gZXhhbXBsZXMvdG9kb19za2lhIChTa2lhKSBpbXBvcnQgaXQgZnJvbSB0aGVpciBvd24gdWkvdG9kby5zbGludCwgd2hpY2gKLy8gd3JhcHMgaXQgaW4gYSB3aW5kb3cgb2YgaXRzIG93bi4gTm90IGEgYnVpbGRfcnVubmVyIHNvdXJjZSBvZiB0aGlzIHBhY2thZ2U6Ci8vIGVhY2ggYXBwJ3MgZ2VuZXJhdGVkIHdyYXBwZXIgZW1iZWRzIGl0LCBhbmQgaXRzIEFPVCBidWlsZCBjb21waWxlcyBpdC4KaW1wb3J0IHsgQnV0dG9uLCBDaGVja0JveCwgTGluZUVkaXQsIExpc3RWaWV3LCBWZXJ0aWNhbEJveCwgSG9yaXpvbnRhbEJveCB9IGZyb20gInN0ZC13aWRnZXRzLnNsaW50IjsKCmV4cG9ydCBzdHJ1Y3QgVG9kb0l0ZW0gewogICAgdGl0bGU6IHN0cmluZywKICAgIGNoZWNrZWQ6IGJvb2wsCn0KCmV4cG9ydCBjb21wb25lbnQgVG9kb1ZpZXcgaW5oZXJpdHMgVmVydGljYWxCb3ggewogICAgaW4gcHJvcGVydHkgPFtUb2RvSXRlbV0+IHRvZG8tbW9kZWw7CgogICAgY2FsbGJhY2sgYWRkLXRvZG8odGl0bGU6IHN0cmluZyk7CiAgICBjYWxsYmFjayB0b2dnbGUtdG9kbyhpbmRleDogaW50LCBjaGVja2VkOiBib29sKTsKICAgIGNhbGxiYWNrIHJlbW92ZS1kb25lKCk7CgogICAgSG9yaXpvbnRhbEJveCB7CiAgICAgICAgcGFkZGluZzogMDsKICAgICAgICBlZGl0IDo9IExpbmVFZGl0IHsKICAgICAgICAgICAgcGxhY2Vob2xkZXItdGV4dDogIldoYXQgbmVlZHMgdG8gYmUgZG9uZT8iOwogICAgICAgICAgICBhY2NlcHRlZCh0ZXh0KSA9PiB7IHJvb3QuYWRkLXRvZG8odGV4dCk7IHNlbGYudGV4dCA9ICIiOyB9CiAgICAgICAgfQogICAgICAgIEJ1dHRvbiB7CiAgICAgICAgICAgIHRleHQ6ICJBZGQiOwogICAgICAgICAgICBwcmltYXJ5OiB0cnVlOwogICAgICAgICAgICBjbGlja2VkID0+IHsgcm9vdC5hZGQtdG9kbyhlZGl0LnRleHQpOyBlZGl0LnRleHQgPSAiIjsgfQogICAgICAgIH0KICAgIH0KICAgIExpc3RWaWV3IHsKICAgICAgICBmb3IgaXRlbVtpbmRleF0gaW4gcm9vdC50b2RvLW1vZGVsOiBIb3Jpem9udGFsQm94IHsKICAgICAgICAgICAgcGFkZGluZzogMDsKICAgICAgICAgICAgQ2hlY2tCb3ggewogICAgICAgICAgICAgICAgdGV4dDogaXRlbS50aXRsZTsKICAgICAgICAgICAgICAgIGNoZWNrZWQ6IGl0ZW0uY2hlY2tlZDsKICAgICAgICAgICAgICAgIHRvZ2dsZWQgPT4geyByb290LnRvZ2dsZS10b2RvKGluZGV4LCBzZWxmLmNoZWNrZWQpOyB9CiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICB9CiAgICBCdXR0b24gewogICAgICAgIHRleHQ6ICJSZW1vdmUgZG9uZSBpdGVtcyI7CiAgICAgICAgY2xpY2tlZCA9PiB7IHJvb3QucmVtb3ZlLWRvbmUoKTsgfQogICAgfQp9Cg==",
+};
 
 /// `TodoItem`, a struct declared in `todo.slint`.
 class TodoItem {
@@ -48,7 +56,7 @@ class TodoItem {
 /// Typed wrapper for the `TodoApp` component of `todo.slint`.
 ///
 /// ```dart
-/// final app = TodoApp.create(SlintInterpreterFactory(TodoApp.slintSource));
+/// final app = TodoApp(component); // a SlintComponent from any backend
 /// ```
 class TodoApp implements SlintSoftwareComponent {
   TodoApp(this.component);
@@ -59,15 +67,26 @@ class TodoApp implements SlintSoftwareComponent {
   /// The `.slint` source this wrapper was generated from.
   static const slintSource = _source;
 
+  /// What [slintSource] reads besides itself, base64 by path relative to it.
+  static const slintFiles = _files;
+
   /// Instantiates `TodoApp` through [factory].
   static TodoApp create(SlintComponentFactory factory) =>
       TodoApp(factory.instantiate(componentName));
 
-  /// The backing instance — use it for untyped property/callback access.
-  final SlintSoftwareComponent component;
+  /// The backing instance, from any backend. App code goes through the typed
+  /// members; the untyped bridge below is what the backends implement.
+  final SlintComponent component;
 
+  /// The target to hand a `SlintView`. Only a backend that renders in
+  /// software has one; a texture backend (slint_skia) does not.
   @override
-  SlintSoftwareRenderTarget get renderTarget => component.renderTarget;
+  SlintSoftwareRenderTarget get renderTarget => switch (component) {
+    final SlintSoftwareComponent c => c.renderTarget,
+    _ => throw StateError(
+      '${component.runtimeType} does not render through a software target',
+    ),
+  };
 
   @override
   void dispose() => component.dispose();
@@ -87,12 +106,12 @@ class TodoApp implements SlintSoftwareComponent {
   Object? invokeCallback(String name, List<Object?> arguments) =>
       component.invokeCallback(name, arguments);
 
-  List<TodoItem> get todoModel => [
-    for (final e in component.getProperty('todo-model') as List<Object?>)
-      TodoItem.fromSlint(e as Map<Object?, Object?>),
-  ];
-  set todoModel(List<TodoItem> value) =>
-      component.setProperty('todo-model', [for (final e in value) e.toSlint()]);
+  late final todoModel = SlintListModel<TodoItem>(
+    () => component.getProperty('todo-model'),
+    (value) => component.setProperty('todo-model', value),
+    (e) => TodoItem.fromSlint(e as Map<Object?, Object?>),
+    (e) => e.toSlint(),
+  );
 
   /// Handles the `add-todo` callback; replaces any previous handler.
   void onAddTodo(void Function(String title) handler) =>

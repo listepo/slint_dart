@@ -11,7 +11,7 @@ Slint runtime for Flutter via Rust FFI — `slint-interpreter` + software render
 
 | Path | Crate | Role |
 |---|---|---|
-| `interpreter/` | `slint-dart-interpreter` | Renderer-agnostic wrapper over upstream `slint-interpreter`: compile, instantiate, JSON value bridge, callbacks. Also used by `slint_skia`. |
+| `slint_build`'s `interpreter/` | `slint-dart-interpreter` | Renderer-agnostic wrapper over upstream `slint-interpreter`: compile, instantiate, JSON value bridge, callbacks. Shared with `slint_testing` and `slint_skia`, so it lives in `slint_build`, the one package all three depend on. |
 | `rust/` | `slint-interpreter-ffi` | Adds the software renderer and the C ABI (`slint_interpreter_*` symbols) this package binds to. |
 
 ## Role
@@ -25,47 +25,32 @@ Provides software-rendered component instances through a C ABI:
   embedded in a generated `*.g.dart` and instantiates the named component:
 
 ```dart
-final app = TodoApp.create(SlintInterpreterFactory(TodoApp.slintSource));
+final app = TodoApp.create(
+    SlintInterpreterFactory(TodoApp.slintSource, files: TodoApp.slintFiles));
 ```
 
-The factory owns the source and `instantiate` is synchronous — compiling is
-one FFI call — so a generated wrapper mentions its embedded source only where
-it constructs this factory, and a release build drops both together.
+The factory owns the source and its files, and `instantiate` is synchronous —
+compiling is one FFI call — so a generated wrapper mentions its embedded
+source only where it constructs this factory, and a release build drops both
+together. It selects the component by name: the compiler returns definitions
+unordered.
 
-## Loading a `.slint` file at runtime
+In an app nothing names this factory: it is the wrapper's `defaultFactory`
+in debug builds, so `SlintComponent.load(path)` after `TodoApp.register()`
+lands here. This backend compiles only what a generated wrapper hands it —
+there is no runtime path for a `.slint` no wrapper was generated from, and no
+async entry point.
 
-Compiling at runtime is what this backend is for, so it is the one that can
-turn an asset key into a component. `SlintComponent.load(path)` never reads
-anything — it answers with the registered wrapper's embedded or compiled-in
-code; `SlintComponent.loadAsset` is for a file no wrapper was generated
-from. It installs itself as the backend the first time a
-`SlintInterpreterFactory` is constructed — which the generated wrappers do —
-or call `useSlintInterpreter()` once at startup:
+## Imports and images
 
-```dart
-useSlintInterpreter();
-// assets/ui/dashboard.slint is declared under `flutter: assets:`
-final component = await SlintComponent.loadAsset('assets/ui/dashboard.slint',
-    component: 'Dashboard');
-runApp(SlintView(target: component.renderTarget));
-```
-
-The path is a Flutter asset key, so the file must be declared under
-`flutter: assets:` — which also means it ships, in every build mode. Reach
-for this when that is the point (a theme pack, user-supplied UI), not to
-avoid regenerating: a generated wrapper already carries its source and
-bundles nothing. It is also the one async entry point — reading the bundle
-is — where `SlintComponent.load` is synchronous.
-
-`component:` may be omitted only when the file exports exactly one — the
-compiler returns them unordered, so with several exports there is no
-meaningful "first" and `loadAsset` names what it found instead of guessing. The
-engine is created on first use and shared across loads.
-
-Only this backend implements the hook. A release build ships the AOT
-backend, which has no compiler, so `SlintComponent.loadAsset` has nothing to
-route to — runtime `.slint` loading is an interpreter-only capability, while
-`SlintComponent.load` of a registered wrapper works in every mode.
+The Slint compiler resolves `import`s and `@image-url`s from disk, relative
+to the file it compiles. A generated wrapper embeds everything its `.slint`
+reads besides itself as `slintFiles` (base64 by path relative to the entry)
+and passes it as `files:`; on first use the factory writes source and files
+into a fresh temporary directory with `writeSlintTree`
+(`package:slint/slint_core.dart`) and compiles the entry there. Without
+files it compiles at a nominal `<Component>.slint` path, which is enough for
+a self-contained source. The directory is not cleaned up — one per factory.
 
 ## Inspecting the live component
 
@@ -85,7 +70,7 @@ keeps installing its own `FlutterSoftwarePlatform`.
 ## Binding Pipeline
 
 ```
-packages/slint_interpreter/interpreter/src/lib.rs (interpreter wrapper)
+packages/slint_build/interpreter/src/lib.rs (interpreter wrapper)
     ↓ used by
 packages/slint_interpreter/rust/src/lib.rs (Rust FFI)
     ↓ cbindgen
@@ -116,3 +101,4 @@ component was disposed are no-ops (`false` for `render`).
 - [x] Rust→Dart callbacks (registered via `NativeCallable`)
 - [x] `SlintView` widget (lives in the `slint` package, consumes `SlintSoftwareRenderTarget.pixels`)
 - [x] Build glue: native-assets `hook/build.dart` (cargo via `slint_build`); bundled in debug builds, where the interpreter is the active path
+- [x] Tests of its own (`test/`, `flutter test`): imports and images through `files`, disposal and callback lifecycle. They exercise the dynamic layer by Slint name with inline sources — the one place outside generated code that does

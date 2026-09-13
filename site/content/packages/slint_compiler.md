@@ -51,8 +51,8 @@ foo.slint ──▶┼─ build_runner ────▶ foo.aot.g.dart (@Native b
 dependencies:
   hooks: ^2.2.0      # hook/{build,link}.dart run without dev deps
   meta: ^1.19.0      # @RecordUse in the generated *.aot.g.dart
-  slint_compiler: ^0.1.0
-  slint_generator: ^0.1.0
+  slint_compiler: ^0.0.1
+  slint_generator: ^0.0.1
 
 dev_dependencies:
   build_runner: ^2.16.0

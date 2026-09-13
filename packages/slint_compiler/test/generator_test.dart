@@ -25,18 +25,19 @@ final _schema = SlintSchema([
       PropertySchema('title', TypeRef('string')),
     ],
     [
-      CallbackSchema('add-todo', [PropertySchema('text', TypeRef('string'))],
-          null),
+      CallbackSchema('add-todo', [
+        PropertySchema('text', TypeRef('string')),
+      ], null),
     ],
   ),
 ]);
 
 String _dart(SlintSchema schema) => generateDartFromSchema(
-      schema,
-      packageName: 'todo_example',
-      assetLibraryPath: 'todo.aot.g.dart',
-      sourceName: 'todo.slint',
-    );
+  schema,
+  packageName: 'todo_example',
+  assetLibraryPath: 'todo.aot.g.dart',
+  sourceName: 'todo.slint',
+);
 
 /// Every `slint_aot_*` symbol a generated library binds or a crate exports.
 Set<String> _symbols(String source, RegExp pattern) =>
@@ -94,23 +95,29 @@ void main() {
       // directly on it, and the manifest must predict its exact Dart name.
       expect(
         out,
-        contains('@RecordUse()\n'
-            '@ffi.Native<ffi.Pointer<ffi.Void> Function()>'
-            "(symbol: 'slint_aot_todo_app_new')"),
+        contains(
+          '@RecordUse()\n'
+          '@ffi.Native<ffi.Pointer<ffi.Void> Function()>'
+          "(symbol: 'slint_aot_todo_app_new')",
+        ),
       );
       expect(
         out,
-        contains('external ffi.Pointer<ffi.Void> '
-            '${aotNewExternName('TodoApp')}();'),
+        contains(
+          'external ffi.Pointer<ffi.Void> '
+          '${aotNewExternName('TodoApp')}();',
+        ),
       );
       expect(out, contains("import 'package:meta/meta.dart' show RecordUse;"));
     });
 
     test('emits one factory per component', () {
-      final out = _dart(SlintSchema([
-        ComponentSchema('TodoApp', const [], const []),
-        ComponentSchema('SettingsPane', const [], const []),
-      ]));
+      final out = _dart(
+        SlintSchema([
+          ComponentSchema('TodoApp', const [], const []),
+          ComponentSchema('SettingsPane', const [], const []),
+        ]),
+      );
       expect(out, contains('final todoAppFactory ='));
       expect(out, contains('final settingsPaneFactory ='));
       expect(out, contains("symbol: 'slint_aot_todo_app_new'"));
@@ -129,7 +136,7 @@ void main() {
         files: [
           SlintAotFile(
             stem: 'todo',
-            source: 'export component TodoApp {}',
+            path: '/abs/ui/todo.slint',
             schema: _schema,
           ),
         ],
@@ -151,8 +158,11 @@ void main() {
       );
 
       expect(bound, isNotEmpty);
-      expect(bound.difference(exported), isEmpty,
-          reason: 'Dart binds symbols the crate does not export');
+      expect(
+        bound.difference(exported),
+        isEmpty,
+        reason: 'Dart binds symbols the crate does not export',
+      );
     });
 
     test('both sides derive the component prefix the same way', () {
@@ -170,10 +180,7 @@ void main() {
         libRs,
         RegExp(r'pub extern "C" fn (slint_aot_\w+)'),
       );
-      final manifest = {
-        ...aotSharedSymbols,
-        ...aotComponentSymbols('TodoApp'),
-      };
+      final manifest = {...aotSharedSymbols, ...aotComponentSymbols('TodoApp')};
       expect(exported, manifest);
     });
   });

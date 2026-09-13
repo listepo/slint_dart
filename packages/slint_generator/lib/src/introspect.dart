@@ -2,14 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:slint_build/slint_build.dart' show stagedCargoManifest;
+
 import 'schema.dart';
 
 /// Runs the `slint-introspect` tool (cargo) on [slintPath] and returns the
 /// typed public interface of its exported components.
 ///
-/// [introspectManifest] points at slint_generator's `rust/Cargo.toml`; when
-/// null it is resolved through the package config (works under `dart run`,
-/// not in AOT-compiled contexts such as build hooks — those must pass it).
+/// [introspectManifest] is slint_generator's crate in the staged Cargo
+/// workspace ([stagedCargoManifest]); when null it is staged from this
+/// isolate's package config (works under `dart run`, not in AOT-compiled
+/// contexts such as build hooks — those must pass it).
 Future<SlintSchema> introspectSlint(
   String slintPath, {
   Uri? introspectManifest,
@@ -34,11 +37,9 @@ Future<SlintSchema> introspectSlint(
 }
 
 Uri _defaultManifest() {
-  final pkg = Isolate.resolvePackageUriSync(Uri.parse('package:slint_generator/'));
-  if (pkg == null) {
-    throw StateError(
-      'cannot resolve package:slint_generator; pass introspectManifest explicitly',
-    );
+  final config = Isolate.packageConfigSync;
+  if (config == null) {
+    throw StateError('no package config; pass introspectManifest explicitly');
   }
-  return pkg.resolve('../rust/Cargo.toml');
+  return stagedCargoManifest(config, 'slint_generator');
 }

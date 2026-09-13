@@ -20,13 +20,14 @@ import 'package:patrol_finders/patrol_finders.dart';
 import 'package:slint_patrol/slint_patrol.dart';
 
 patrolWidgetTest('adding a todo', ($) async {
-  await $.pumpWidget(const TodoApp());
+  await $.pumpWidget(const MyApp()); // an app that loads ui/todo.slint
   await $.slintSettle();
 
-  await $.slintById('TodoApp::edit').enterText('buy milk');
+  await $.slintById('TodoView::edit').enterText('buy milk');
   await $.slint('Add').tap();
+  await $.slintSettle();
 
-  expect($.slintComponent().getProperty('todo-count'), 1);
+  expect(TodoApp($.slintComponent()).todoModel.last.title, 'buy milk');
 });
 ```
 
@@ -39,7 +40,7 @@ test can drive Flutter widgets with `$(...)`, Slint elements with
 | Method | Matches |
 | --- | --- |
 | `$.slint(label)` | the accessible label — a button's text, a checkbox's caption |
-| `$.slintById(id)` | an element id qualified by its component, `TodoApp::edit` |
+| `$.slintById(id)` | an element id qualified by the component that declares it, `TodoView::edit` |
 | `$.slintByType(name)` | the element's type, `Button`, `LineEdit` |
 | `$.slintByRole(role)` | the accessible role, `Button`, `Checkbox`, `TextInput` |
 | `$.slintAll()` | every element in the tree |
@@ -87,14 +88,18 @@ edits to characters, backspace and enter, which is the limit here too.
 
 ## Properties and callbacks
 
-`$.slintComponent()` returns the live component for reading and writing
-properties and invoking callbacks, through the same JSON bridge the rest of
-the repo uses:
+`$.slintComponent()` returns the live component. Wrap it in the generated
+wrapper — its constructor takes any backend's component — and use the same
+typed members the app uses, never a Slint property name:
 
 ```dart
-$.slintComponent().setProperty('title', 'Groceries');
-expect($.slintComponent().getProperty('todo-count'), 3);
+final app = TodoApp($.slintComponent());
+expect(app.todoModel.map((t) => t.title), contains('buy milk'));
+app.invokeAddTodo('Groceries'); // runs the app's own handler
 ```
+
+`examples/todo/test/todo_patrol_test.dart` drives the real `TodoPage` this
+way.
 
 ## Which backend works
 

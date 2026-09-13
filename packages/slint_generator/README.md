@@ -9,6 +9,4 @@ dev_dependencies:
   slint_generator: ^0.0.1
 ```
 
-**Full docs:** see the docs site (`just docs-serve`) — package page under
-Packages (schema tool, `create`/`load`, `defaultFactory`), and
-[Getting started](../../site/content/guides/getting-started.md).
+**Full docs:** [slint_generator package page](https://listepo.github.io/slint_dart/packages/slint_generator/), [Getting started](https://listepo.github.io/slint_dart/guides/getting-started/).

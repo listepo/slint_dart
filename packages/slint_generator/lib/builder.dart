@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:build/build.dart';
-import 'package:slint_build/slint_build.dart' show packageRootFromConfig;
+import 'package:path/path.dart' as p;
+import 'package:slint_build/slint_build.dart' show stagedCargoManifest;
 
 import 'src/emitter.dart';
 import 'src/introspect.dart';
@@ -22,6 +23,13 @@ String slintStem(AssetId input) =>
     input.path.substring('ui/'.length, input.path.length - '.slint'.length);
 
 class _SlintBuilder implements Builder {
+  Uri? _introspectManifest;
+
+  Uri _introspectManifestPath() => _introspectManifest ??= stagedCargoManifest(
+    findPackageConfigFrom(Directory.current),
+    'slint_generator',
+  );
+
   @override
   final Map<String, List<String>> buildExtensions = const {
     '^ui/{{}}.slint': ['lib/{{}}.g.dart'],
@@ -39,17 +47,42 @@ class _SlintBuilder implements Builder {
       await buildStep.readAsString(AssetId(input.package, 'pubspec.yaml')),
     );
 
-    // build_runner runs from the package root; resolve the introspect tool
-    // through the package config (Isolate.resolvePackageUri is unavailable in
-    // the AOT-compiled build script).
-    final generatorRoot = packageRootFromConfig(
-      findPackageConfigFrom(Directory.current),
-      'slint_generator',
-    );
+    // build_runner runs from the package root; the introspect tool builds in
+    // the Cargo workspace staged for its package config (the isolate's own is
+    // unavailable in the AOT-compiled build script).
     final schema = await introspectSlint(
       File(input.path).absolute.path,
-      introspectManifest: generatorRoot.resolve('rust/Cargo.toml'),
+      introspectManifest: _introspectManifestPath(),
     );
+
+    // Imports and images, by path relative to the `.slint`, for the
+    // interpreter: it compiles the embedded source, not the file.
+    final mainDir = p.dirname(
+      File(input.path).absolute.resolveSymbolicLinksSync(),
+    );
+    final packageRoot = Directory.current.resolveSymbolicLinksSync();
+    final packageConfig = findPackageConfigFrom(Directory.current);
+    final files = <String, List<int>>{};
+    for (final path in schema.files) {
+      final id = p.isWithin(packageRoot, path)
+          ? AssetId(
+              input.package,
+              p.split(p.relative(path, from: packageRoot)).join('/'),
+            )
+          : null;
+      final key = p.split(p.relative(path, from: mainDir)).join('/');
+      if (id != null && await buildStep.canRead(id)) {
+        files[key] = await buildStep.readAsBytes(id);
+        continue;
+      }
+      final externalId = assetIdForAbsolutePath(packageConfig, path);
+      if (externalId != null && await buildStep.canRead(externalId)) {
+        files[key] = await buildStep.readAsBytes(externalId);
+      } else {
+        // Last resort: untracked read (e.g. a path outside the workspace).
+        files[key] = File(path).readAsBytesSync();
+      }
+    }
 
     final stem = slintStem(input);
     await buildStep.writeAsString(
@@ -64,6 +97,7 @@ class _SlintBuilder implements Builder {
             ? '${stem.split('/').last}.aot.g.dart'
             : null,
         interpreter: deps.contains('slint_interpreter'),
+        slintFiles: files,
       ),
     );
   }
