@@ -37,7 +37,11 @@ void emitAotCrate(
   // still satisfy the manifest, so the workspace's lock makes the AOT build
   // pick the same tree as the interpreter crates.
   if (lockfile != null && lockfile.existsSync()) {
-    lockfile.copySync('${crateDir.path}/Cargo.lock');
+    // The shared output dir is fresh on a clean machine (CI): without this,
+    // `copySync` throws `PathNotFoundException` for the missing parent.
+    // A missing lock needs nothing: cargo resolves afresh.
+    crateDir.createSync(recursive: true);
+    lockfile.copySync(File.fromUri(crateDir.uri.resolve('Cargo.lock')).path);
   }
   final src = Directory('${crateDir.path}/src');
   if (src.existsSync()) src.deleteSync(recursive: true);

@@ -80,6 +80,13 @@ impl SkiaWindowAdapter {
             window: Window::new(weak.clone()),
             // No surface yet: `set_window_handle` builds Slint's own
             // (Android), `set_surface` takes ours (everywhere else).
+            // Windows has no `default`: without the `softbuffer` feature
+            // (see the workspace manifest) it is not `skia_windowed` there,
+            // so take the Direct3D constructor — identical except for the
+            // `set_window_handle` factory, which Windows never calls.
+            #[cfg(target_os = "windows")]
+            renderer: SkiaRenderer::default_direct3d(context),
+            #[cfg(not(target_os = "windows"))]
             renderer: SkiaRenderer::default(context),
             size: Cell::new(PhysicalSize::new(0, 0)),
             needs_redraw: Cell::new(true),
@@ -136,13 +143,17 @@ pub mod shared_texture {
     use i_slint_renderer_skia::skia_safe::{Canvas, ColorType};
     use slint::PlatformError;
 
-    pub type RenderCallback = dyn Fn(&Canvas, Option<&mut DirectContext>, u8) -> Option<DirtyRegion>;
+    // `+ '_`: the trait takes `&dyn Fn...` (bound to the borrow), while a
+    // bare `dyn Fn...` alias would default to `+ 'static` and its `&` would
+    // no longer match the trait (E0308 method-not-compatible-with-trait).
+    pub type RenderCallback<'a> =
+        dyn Fn(&Canvas, Option<&mut DirectContext>, u8) -> Option<DirtyRegion> + 'a;
 
     pub fn render(
         context: &RefCell<DirectContext>,
         target: &BackendRenderTarget,
         color_type: ColorType,
-        render_callback: &RenderCallback,
+        render_callback: &RenderCallback<'_>,
         pre_present_callback: &RefCell<Option<Box<dyn FnMut()>>>,
     ) -> Result<DrawOutcome, PlatformError> {
         let mut context = context.borrow_mut();

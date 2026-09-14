@@ -125,7 +125,8 @@ fn egl_error(egl: &Egl, call: &str) -> String {
 /// Mesa's surfaceless platform needs no X11 or Wayland connection (CI, a
 /// headless box, a GPU render node); other drivers get the default display.
 fn display(egl: &Egl) -> Result<EGLDisplay, String> {
-    type GetPlatformDisplay = unsafe extern "C" fn(EGLenum, *mut c_void, *const EGLint) -> EGLDisplay;
+    type GetPlatformDisplay =
+        unsafe extern "C" fn(EGLenum, *mut c_void, *const EGLint) -> EGLDisplay;
     unsafe {
         let get_platform_display = (egl.eglGetProcAddress)(c"eglGetPlatformDisplayEXT".as_ptr());
         if !get_platform_display.is_null() {
@@ -195,15 +196,21 @@ impl Pbuffer {
             }
             let mut config = ptr::null_mut();
             let mut count = 0;
-            if (egl.eglChooseConfig)(display, config_attributes.as_ptr(), &mut config, 1, &mut count)
-                != EGL_TRUE
+            if (egl.eglChooseConfig)(
+                display,
+                config_attributes.as_ptr(),
+                &mut config,
+                1,
+                &mut count,
+            ) != EGL_TRUE
                 || count == 0
             {
                 return Err("no EGL config with an RGBA8 GLES pbuffer".into());
             }
             let mut stencil_bits = 0;
             (egl.eglGetConfigAttrib)(display, config, EGL_STENCIL_SIZE, &mut stencil_bits);
-            let surface = (egl.eglCreatePbufferSurface)(display, config, surface_attributes.as_ptr());
+            let surface =
+                (egl.eglCreatePbufferSurface)(display, config, surface_attributes.as_ptr());
             if surface.is_null() {
                 return Err(egl_error(egl, "eglCreatePbufferSurface"));
             }
@@ -382,7 +389,11 @@ impl Surface for PbufferSurface {
         &self,
         _window: &Window,
         _size: PhysicalSize,
-        render_callback: &dyn Fn(&Canvas, Option<&mut gpu::DirectContext>, u8) -> Option<DirtyRegion>,
+        render_callback: &dyn Fn(
+            &Canvas,
+            Option<&mut gpu::DirectContext>,
+            u8,
+        ) -> Option<DirtyRegion>,
         pre_present_callback: &RefCell<Option<Box<dyn FnMut()>>>,
     ) -> Result<DrawOutcome, PlatformError> {
         let _current = self.pbuffer.make_current()?;
