@@ -142,7 +142,7 @@ impl InstanceHandle {
         if !self.adapter.take_redraw() {
             return Ok(false);
         }
-        self.adapter.skia().render().map_err(|e| e.to_string())?;
+        let _ = self.adapter.skia().render().map_err(|e| e.to_string())?;
         Ok(true)
     }
 }
