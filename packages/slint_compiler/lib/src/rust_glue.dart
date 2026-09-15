@@ -209,7 +209,7 @@ fn parse_color_literal(s: &str) -> Option<Color> {
             let rgb = u32::from_str_radix(h, 16).ok()?;
             Some(Color::from_argb_encoded(0xff000000 | rgb))
         }
-        8 => Color::from_argb_encoded(u32::from_str_radix(h, 16).ok()?),
+        8 => Some(Color::from_argb_encoded(u32::from_str_radix(h, 16).ok()?)),
         _ => None,
     }
 }
@@ -284,12 +284,12 @@ fn brush_from_json(v: &Json) -> Result<Brush, String> {
             .ok_or_else(|| "A linear brush needs to start with an angle in 'deg'".to_string())
             .and_then(|no| no.parse::<f32>().map_err(|_| "Failed to parse angle value".into()))?;
         let stops = parse_gradient_stops(split)?;
-        return Ok(Brush::LinearGradient(slint::private_unstable_api::re_exports::LinearGradientBrush::new(angle, stops.drain(..))));
+        return Ok(Brush::LinearGradient(slint::private_unstable_api::re_exports::LinearGradientBrush::new(angle, stops)));
     }
     if let Some(radial) = input.strip_prefix("@radial-gradient(circle") {
         let split = radial.split(',').map(str::trim);
         let stops = parse_gradient_stops(split)?;
-        return Ok(Brush::RadialGradient(slint::private_unstable_api::re_exports::RadialGradientBrush::new_circle(stops.drain(..))));
+        return Ok(Brush::RadialGradient(slint::private_unstable_api::re_exports::RadialGradientBrush::new_circle(stops)));
     }
     Err(format!("Could not parse gradient from '{input}'"))
 }
