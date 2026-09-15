@@ -8,13 +8,14 @@ use std::sync::Arc;
 
 use i_slint_core::api::{PhysicalSize, Window};
 use i_slint_core::graphics::RequestedGraphicsAPI;
-use i_slint_core::renderer::DrawOutcome;
+use i_slint_core::partial_renderer::DirtyRegion;
 use i_slint_core::platform::PlatformError;
+use i_slint_core::renderer::DrawOutcome;
 use i_slint_renderer_skia::skia_safe::gpu::{self, mtl};
-use i_slint_renderer_skia::skia_safe::ColorType;
+use i_slint_renderer_skia::skia_safe::{Canvas, ColorType};
 use i_slint_renderer_skia::{SkiaSharedContext, Surface};
 
-use super::shared_texture::{self, RenderCallback};
+use super::shared_texture;
 
 /// Nothing to hold: Skia retains the texture, the plugin keeps its backing.
 pub struct Attachment;
@@ -77,7 +78,11 @@ impl Surface for TextureSurface {
         &self,
         _window: &Window,
         _size: PhysicalSize,
-        render_callback: &RenderCallback,
+        render_callback: &dyn Fn(
+            &Canvas,
+            Option<&mut gpu::DirectContext>,
+            u8,
+        ) -> Option<DirtyRegion>,
         pre_present_callback: &RefCell<Option<Box<dyn FnMut()>>>,
     ) -> Result<DrawOutcome, PlatformError> {
         // Metal hands out autoreleased objects; don't rely on the caller's pool.

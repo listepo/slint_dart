@@ -32,3 +32,11 @@ windows = { version = "0.62", features = [
 
 [lints]
 workspace = true
+
+# Softbuffer is the only Skia windowed backend available on Windows when we
+# disable the crate default (to keep Linux free of softbuffer 0.4.8's empty
+# backend enums). Feature unification applies only on this target.
+[target.'cfg(target_os = "windows")'.dependencies.i-slint-renderer-skia]
+version = "=1.17.1"
+default-features = false
+features = ["softbuffer"]

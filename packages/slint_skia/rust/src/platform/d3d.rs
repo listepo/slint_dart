@@ -8,10 +8,11 @@ use std::sync::Arc;
 
 use i_slint_core::api::{PhysicalSize, Window};
 use i_slint_core::graphics::RequestedGraphicsAPI;
+use i_slint_core::partial_renderer::DirtyRegion;
 use i_slint_core::platform::PlatformError;
 use i_slint_core::renderer::DrawOutcome;
 use i_slint_renderer_skia::skia_safe::gpu::{self, d3d};
-use i_slint_renderer_skia::skia_safe::ColorType;
+use i_slint_renderer_skia::skia_safe::{Canvas, ColorType};
 use i_slint_renderer_skia::{SkiaSharedContext, Surface};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{CloseHandle, GENERIC_ALL, HANDLE, LUID};
@@ -30,7 +31,7 @@ use windows::Win32::Graphics::Dxgi::{
     CreateDXGIFactory2, IDXGIAdapter1, IDXGIFactory4, DXGI_CREATE_FACTORY_FLAGS,
 };
 
-use super::shared_texture::{self, RenderCallback};
+use super::shared_texture;
 
 /// The NT handle of the texture the surface renders into; closed on drop.
 /// The surface keeps the texture itself alive.
@@ -92,10 +93,7 @@ fn device(
 
 /// A BGRA8 render-target texture other devices (Flutter's ANGLE) can open
 /// through an NT handle, without a keyed mutex.
-fn new_shared_texture(
-    device: &ID3D12Device,
-    size: PhysicalSize,
-) -> Result<ID3D12Resource, String> {
+fn new_shared_texture(device: &ID3D12Device, size: PhysicalSize) -> Result<ID3D12Resource, String> {
     let heap = D3D12_HEAP_PROPERTIES {
         Type: D3D12_HEAP_TYPE_DEFAULT,
         ..Default::default()
@@ -176,10 +174,8 @@ impl TextureSurface {
             sample_quality_pattern: DXGI_STANDARD_MULTISAMPLE_QUALITY_PATTERN,
             protected: gpu::Protected::No,
         };
-        let target = gpu::backend_render_targets::make_d3d(
-            (size.width as i32, size.height as i32),
-            &info,
-        );
+        let target =
+            gpu::backend_render_targets::make_d3d((size.width as i32, size.height as i32), &info);
         Ok(Self {
             context: RefCell::new(context),
             target,
@@ -207,7 +203,11 @@ impl Surface for TextureSurface {
         &self,
         _window: &Window,
         _size: PhysicalSize,
-        render_callback: &RenderCallback,
+        render_callback: &dyn Fn(
+            &Canvas,
+            Option<&mut gpu::DirectContext>,
+            u8,
+        ) -> Option<DirtyRegion>,
         pre_present_callback: &RefCell<Option<Box<dyn FnMut()>>>,
     ) -> Result<DrawOutcome, PlatformError> {
         shared_texture::render(

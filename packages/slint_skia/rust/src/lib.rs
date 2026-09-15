@@ -142,7 +142,7 @@ impl InstanceHandle {
         if !self.adapter.take_redraw() {
             return Ok(false);
         }
-        self.adapter.skia().render().map_err(|e| e.to_string())?;
+        let _ = self.adapter.skia().render().map_err(|e| e.to_string())?;
         Ok(true)
     }
 }
@@ -536,7 +536,11 @@ pub extern "C" fn slint_skia_instance_get_property(
 ) -> *mut c_char {
     ffi("slint_skia_instance_get_property", ptr::null_mut(), || {
         let handle = handle_of(instance)?;
-        c_string(handle.core.get_property_json(utf8(name, "property name")?)?)
+        c_string(
+            handle
+                .core
+                .get_property_json(utf8(name, "property name")?)?,
+        )
     })
 }
 
@@ -584,7 +588,9 @@ mod tests {
         if ptr.is_null() {
             return String::new();
         }
-        let msg = unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned();
+        let msg = unsafe { CStr::from_ptr(ptr) }
+            .to_string_lossy()
+            .into_owned();
         slint_skia_string_free(ptr);
         msg
     }
@@ -631,7 +637,9 @@ mod tests {
         assert!(!slint_skia_instance_render(instance));
         assert!(last_error().contains("no GPU surface"));
 
-        assert!(!slint_skia_instance_pointer_event(instance, 9, 0.0, 0.0, 0, 0.0, 0.0));
+        assert!(!slint_skia_instance_pointer_event(
+            instance, 9, 0.0, 0.0, 0, 0.0, 0.0
+        ));
         assert!(last_error().contains("invalid pointer event"));
         assert!(
             slint_skia_instance_pointer_event(instance, 0, 1.0, 1.0, 0, 0.0, 0.0),
@@ -685,7 +693,11 @@ mod tests {
             );
             assert!(slint_skia_instance_render(instance), "{}", last_error());
             assert_idle(instance);
-            assert_red(&test_support::read_rgba(&objects, width, height), width, height);
+            assert_red(
+                &test_support::read_rgba(&objects, width, height),
+                width,
+                height,
+            );
         }
     }
 
@@ -701,7 +713,11 @@ mod tests {
             let mut len = 0;
             let pixels = slint_skia_instance_pixels(instance, &mut len);
             assert!(!pixels.is_null(), "{}", last_error());
-            assert_red(unsafe { std::slice::from_raw_parts(pixels, len) }, width, height);
+            assert_red(
+                unsafe { std::slice::from_raw_parts(pixels, len) },
+                width,
+                height,
+            );
             assert_idle(instance);
         }
     }
