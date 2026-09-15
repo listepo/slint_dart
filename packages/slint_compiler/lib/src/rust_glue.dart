@@ -237,7 +237,7 @@ fn brush_to_json(b: &Brush) -> Result<Json, String> {
         Brush::LinearGradient(lg) => {
             let mut gradient = format!("@linear-gradient({}deg", lg.angle());
             for stop in lg.stops() {
-                gradient.push_str(&format!(", {} {}%", color_to_string(stop.color()), stop.position * 100.0));
+                gradient.push_str(&format!(", {} {}%", color_to_string(&stop.color), stop.position * 100.0));
             }
             gradient.push(')');
             Ok(Json::String(gradient))
@@ -245,7 +245,7 @@ fn brush_to_json(b: &Brush) -> Result<Json, String> {
         Brush::RadialGradient(rg) => {
             let mut gradient = "@radial-gradient(circle".to_string();
             for stop in rg.stops() {
-                gradient.push_str(&format!(", {} {}%", color_to_string(stop.color()), stop.position * 100.0));
+                gradient.push_str(&format!(", {} {}%", color_to_string(&stop.color), stop.position * 100.0));
             }
             gradient.push(')');
             Ok(Json::String(gradient))
@@ -284,19 +284,19 @@ fn brush_from_json(v: &Json) -> Result<Brush, String> {
             .ok_or_else(|| "A linear brush needs to start with an angle in 'deg'".to_string())
             .and_then(|no| no.parse::<f32>().map_err(|_| "Failed to parse angle value".into()))?;
         let stops = parse_gradient_stops(split)?;
-        return Ok(Brush::LinearGradient(slint::LinearGradientBrush::new(angle, stops.drain(..))));
+        return Ok(Brush::LinearGradient(slint::private_unstable_api::re_exports::LinearGradientBrush::new(angle, stops.drain(..))));
     }
     if let Some(radial) = input.strip_prefix("@radial-gradient(circle") {
         let split = radial.split(',').map(str::trim);
         let stops = parse_gradient_stops(split)?;
-        return Ok(Brush::RadialGradient(slint::RadialGradientBrush::new_circle(stops.drain(..))));
+        return Ok(Brush::RadialGradient(slint::private_unstable_api::re_exports::RadialGradientBrush::new_circle(stops.drain(..))));
     }
     Err(format!("Could not parse gradient from '{input}'"))
 }
 
 fn parse_gradient_stops<'a>(
     it: impl Iterator<Item = &'a str>,
-) -> Result<Vec<slint::GradientStop>, String> {
+) -> Result<Vec<slint::private_unstable_api::re_exports::GradientStop>, String> {
     it.filter(|part| !part.is_empty())
         .map(|part| {
             let sub_parts: Vec<_> = part.split_whitespace().collect();
@@ -313,7 +313,7 @@ fn parse_gradient_stops<'a>(
                         .parse::<f32>()
                         .map_err(|_| format!("Could not parse position '{}' as number", sub_parts[1]))
                 })?;
-            Ok(slint::GradientStop {
+            Ok(slint::private_unstable_api::re_exports::GradientStop {
                 color,
                 position: position / 100.0,
             })
