@@ -3,7 +3,7 @@
 //! surface (glutin, EGL/GLES) renders into it. Flutter composites the queued
 //! buffers; there is no frame-available call.
 //!
-//! Not Vulkan: Slint 1.17.1's `VulkanSurface` has no `AndroidNdk` window
+//! Not Vulkan: Slint 1.18.0's `VulkanSurface` has no `AndroidNdk` window
 //! arm (`create_surface` ends in `unimplemented!()`), so the renderer's
 //! `vulkan` feature could not take this window.
 

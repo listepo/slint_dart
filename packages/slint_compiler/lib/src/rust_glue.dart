@@ -5,7 +5,7 @@ import 'package:slint_generator/slint_generator.dart';
 /// The `slint` / `slint-build` version the generated crate pins. Must match
 /// the workspace pin in the root `Cargo.toml` (`[workspace.dependencies]`),
 /// which slint-introspect and the FFI crates inherit.
-const slintVersion = '1.17.1';
+const slintVersion = '1.18.0';
 
 /// One `.slint` source going into the AOT crate.
 class SlintAotFile {
@@ -64,7 +64,7 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
-slint = { version = "=$slintVersion", default-features = false, features = ["compat-1-2", "std", "renderer-software", "software-renderer-systemfonts"] }
+slint = { version = "=$slintVersion", default-features = false, features = ["compat-1-2", "std", "renderer-software"] }
 slint-dart-core = { path = "${slintCoreCratePath.replaceAll(r'\', r'\\')}" }
 serde_json = "1"
 

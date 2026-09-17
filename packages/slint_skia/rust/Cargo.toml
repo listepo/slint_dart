@@ -37,6 +37,6 @@ workspace = true
 # disable the crate default (to keep Linux free of softbuffer 0.4.8's empty
 # backend enums). Feature unification applies only on this target.
 [target.'cfg(target_os = "windows")'.dependencies.i-slint-renderer-skia]
-version = "=1.17.1"
+version = "=1.18.0"
 default-features = false
 features = ["softbuffer"]

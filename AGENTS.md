@@ -280,7 +280,7 @@ release builds (fat LTO) take minutes; run them in the background.
   is `!Send`) or the thread-local error slot, and report instead of
   corrupting. Drive a component only from the isolate that created it.
 - **One Slint version, pinned exactly**: `[workspace.dependencies]` in
-  the root `Cargo.toml` (`=1.17.1`); the crates inherit with `workspace =
+  the root `Cargo.toml` (`=1.18.0`); the crates inherit with `workspace =
   true`. The staged workspace repeats that tail verbatim
   (`cargoWorkspaceShared` in `slint_build`, test-compared with the root
   file) because a pub consumer has no repo root. The generated AOT crate is

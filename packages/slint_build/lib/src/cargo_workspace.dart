@@ -19,17 +19,17 @@ const cargoCrates = <String, List<String>>{
 /// `slintVersion`.
 const cargoWorkspaceShared = '''
 [workspace.dependencies]
-slint = { version = "=1.17.1", default-features = false }
-slint-interpreter = { version = "=1.17.1", default-features = false }
-i-slint-compiler = "=1.17.1"
-i-slint-backend-testing = { version = "=1.17.1", default-features = false }
+slint = { version = "=1.18.0", default-features = false }
+slint-interpreter = { version = "=1.18.0", default-features = false }
+i-slint-compiler = "=1.18.0"
+i-slint-backend-testing = { version = "=1.18.0", default-features = false }
 # No default features: the default pulls in `softbuffer`, whose 0.4.8 (the
 # newest release) cannot compile for Linux targets — with no backend feature
 # enabled (Slint enables none) its dispatch enums are empty, rejected by
 # current rustc (E0392/E0004). Nothing here uses it: every surface is custom
 # (metal/d3d/gl/android), so the softbuffer fallback is dead weight.
-i-slint-renderer-skia = { version = "=1.17.1", default-features = false }
-i-slint-core = "=1.17.1"
+i-slint-renderer-skia = { version = "=1.18.0", default-features = false }
+i-slint-core = "=1.18.0"
 serde_json = "1"
 spin_on = "0.1"
 

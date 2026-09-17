@@ -63,7 +63,7 @@ cd ../../examples/todo && mise exec -- dart run build_runner build   # see the o
   adds is not a bug.
 - **Component definitions are selected by name**, never `defs.first`: the
   compiler returns them unordered.
-- **Wire JSON matches Slint 1.17** (`slint-interpreter` `json.rs`): color
+- **Wire JSON matches Slint 1.18** (`slint-interpreter` `json.rs`): color
   `#rrggbb`/`#rrggbbaa`; brush hex or `@linear-gradient(...)` /
   `@radial-gradient(...)`; image path string; enum `"EnumName.variant"`.
   Generated wrappers convert through `SlintColor`/`SlintBrush` in
@@ -75,6 +75,7 @@ cd ../../examples/todo && mise exec -- dart run build_runner build   # see the o
   field named `class` produces uncompilable output. Rename in the `.slint`.
 - Supported types: numbers, string, bool, color, brush, image, enum, named
   structs, arrays. Anything else fails generation with a clear error.
-- `rust/Cargo.toml` pins `i-slint-compiler = "=1.17.1"`; bumping it means
-  bumping the version `slint_compiler/lib/src/rust_glue.dart` writes into the
-  generated AOT crate, in the same change.
+- `i-slint-compiler` comes from the workspace pin (`=1.18.0`); bumping it means
+  bumping the root `Cargo.toml`, staged `cargoWorkspaceShared`, and the version
+  `slint_compiler/lib/src/rust_glue.dart` writes into the generated AOT crate,
+  in the same change.

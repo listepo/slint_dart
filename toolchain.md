@@ -15,6 +15,9 @@
 
 ## cargo
 
+Slint crates pinned exactly at **1.18.0** in the root `Cargo.toml` `[workspace.dependencies]` (and mirrored in `slint_build` / `slint_compiler` — see AGENTS.md).
+
+
 | Пакет | Где | Источник | Зачем здесь |
 | --- | --- | --- | --- |
 | i-slint-backend-testing | локально | https://crates.io/crates/i-slint-backend-testing | Зависимость Rust |

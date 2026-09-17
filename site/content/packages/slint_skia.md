@@ -32,7 +32,7 @@ GPU into a Flutter external texture.
 | Windows | `flutter::GpuSurfaceTexture` over a DXGI shared handle (C++, `windows/`) | `platform/d3d.rs`: a D3D12 device on Flutter's adapter (by LUID), a shared BGRA8 texture + NT handle, a Skia D3D context |
 | Linux | `FlPixelBufferTexture` fed with each frame (C, `linux/`) | `platform/gl.rs`: a headless EGL pbuffer (surfaceless Mesa first) with Skia GL, read back with `read_pixels` |
 
-Android uses Slint's GL surface because Slint 1.17.1's `VulkanSurface` has
+Android uses Slint's GL surface because Slint 1.18.0's `VulkanSurface` has
 no Android NDK arm. Linux loads `libEGL.so.1` at runtime, so a missing EGL is
 an attach error rather than a failure to load the library.
 
@@ -220,7 +220,7 @@ packages/slint_skia/
 | Linux EGL thread | The EGL context is made current on the Dart thread; if a GLX context is current there, libglvnd refuses (`EGL_BAD_ACCESS`, reported as such) | A dedicated render thread |
 | Windows handle | Flutter's ANGLE (D3D11) opens a D3D12 NT handle without a keyed mutex; proven only in CI | A keyed mutex or a D3D11 texture if ANGLE rejects it |
 | Android surface lifecycle | `onSurfaceCleanup` reaches Dart asynchronously, so a frame can target a surface being torn down; the `SurfaceProducer` callbacks need Flutter 3.27+ | A synchronous detach on the platform thread |
-| Android renderer | Slint's GL/EGL surface: Slint 1.17.1's `VulkanSurface` has no Android NDK arm | A Slint release with Vulkan on Android |
+| Android renderer | Slint's GL/EGL surface: Slint 1.18.0's `VulkanSurface` has no Android NDK arm | A Slint release with Vulkan on Android |
 | Keyboard in `examples/todo_skia` | Pointer only | `SlintView`'s focus + text input pattern, once typing matters |
 | Dart bindings | Platform-only entry points hand-declared in `skia_native.dart`; `bindings.g.dart` stale until ffigen runs | Regenerate with ffigen |
 | Scale factor | Stays 1; sizes and pointer coordinates are physical pixels | Wire `set_scale_factor` |
