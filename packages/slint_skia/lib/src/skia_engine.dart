@@ -32,7 +32,7 @@ void _freeString(Pointer<Char> ptr) {
 
 /// Implementation of SlintEngine using Skia renderer
 class SkiaSlintEngine implements SlintEngine {
-  late SlintSkiaEngine _enginePtr;
+  late Pointer<Void> _enginePtr;
 
   SkiaSlintEngine() {
     _enginePtr = slint_skia_engine_new();
@@ -82,7 +82,7 @@ class SkiaSlintEngine implements SlintEngine {
 
 /// Implementation of SlintComponentDefinition for Skia
 class SkiaSlintComponentDefinition implements SlintComponentDefinition {
-  late SlintSkiaDefinitionList _defPtr;
+  late Pointer<Void> _defPtr;
   final String _name;
 
   SkiaSlintComponentDefinition._create(this._defPtr, this._name);
@@ -114,7 +114,7 @@ class SkiaSlintComponentDefinition implements SlintComponentDefinition {
 
 /// Implementation of SlintComponent for Skia
 class SkiaSlintComponent implements SlintComponent {
-  late SlintSkiaInstance _instPtr;
+  late Pointer<Void> _instPtr;
 
   SkiaSlintComponent._create(this._instPtr);
 
@@ -292,7 +292,7 @@ class SkiaTextureRenderTarget implements SlintTextureRenderTarget {
 
   bool _disposed = false;
 
-  SlintSkiaInstance get _instance => _component._instPtr;
+  Pointer<Void> get _instance => _component._instPtr;
 
   @override
   SlintComponent get component => _component;

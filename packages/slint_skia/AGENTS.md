@@ -14,7 +14,7 @@ compiled and verified only in CI (the `skia-*` jobs). Read the root
 | `rust/src/platform/` | `mod.rs`: the Slint platform and `SkiaWindowAdapter`; `metal.rs`, `android.rs`, `d3d.rs`, `gl.rs`: the per-platform surfaces. |
 | `lib/src/skia_engine.dart` | `SkiaSlintEngine`, `SkiaSlintComponentDefinition`, `SkiaSlintComponent`, `SkiaTextureRenderTarget` (channel + FFI glue). |
 | `lib/src/skia_native.dart` | Hand-declared `@Native`s: the platform-only entry points and detach. |
-| `lib/src/bindings.g.dart` | ffigen output. Stale until ffigen runs (still declares the removed `slint_skia_instance_texture_id`, which nothing calls). |
+| `lib/src/bindings.g.dart` | ffigen output for the shared `slint_skia_*` ABI (platform attach/detach/pixels excluded; those live in `skia_native.dart`). Regenerated with `just bindings slint_skia`. |
 | `darwin/`, `android/`, `windows/`, `linux/` | The platform plugins: register the texture and hand Rust its render target over the `slint_skia` channel. |
 | `hook/build.dart` | Builds `slint-skia-ffi` via `slint_build` — which builds **all of Skia**. |
 
@@ -30,17 +30,24 @@ cd rust && cargo metadata --format-version 1 > /dev/null    # deps resolve
 cbindgen --config rust/cbindgen.toml --crate slint-skia-ffi --output rust/include/slint_skia_ffi.h rust
 ```
 
-**Never locally**: `cargo build/check/clippy` of this crate, `flutter
-run/build/test` of anything depending on it, `ffigen`. Building
-`slint-skia-ffi` compiles `skia-safe` (10+ GB of artifacts). Root `Cargo.toml`
-and the melos `rust:clippy` script exclude it; the melos `test:flutter`
-script skips it and `todo_skia_example`. CI's `skia-apple`, `skia-linux`,
-`skia-android` and `skia-windows` jobs are where it is built: clippy, the GPU
-test, and a debug build of `examples/todo_skia` per platform (which compiles
-the plugins). `dart analyze .` runs here and must stay clean:
-`lib/src/bindings.g.dart` is excluded in `analysis_options.yaml` and kept out
-of the published archive by `.pubignore`, because over system headers it
-carries ~80 unused-field warnings that pub.dev scores against.
+**Never locally**: `cargo build/check/clippy` of this crate, or `flutter
+run/build/test` of anything depending on it. Building `slint-skia-ffi`
+compiles `skia-safe` (10+ GB of artifacts). Root `Cargo.toml` and the melos
+`rust:clippy` script exclude it; the melos `test:flutter` script skips it and
+`todo_skia_example`. CI's `skia-apple`, `skia-linux`, `skia-android` and
+`skia-windows` jobs are where it is built: clippy, the GPU test, and a debug
+build of `examples/todo_skia` per platform (which compiles the plugins).
+`dart analyze .` runs here and must stay clean: `lib/src/bindings.g.dart` is
+excluded in `analysis_options.yaml` and kept out of the published archive by
+`.pubignore`, because over system headers it carries ~80 unused-field
+warnings that pub.dev scores against.
+
+**ffigen:** do not run it casually — regenerating pulls macOS system headers
+into `bindings.g.dart` and needs a careful diff (shared ABI only; platform
+symbols must stay solely in `skia_native.dart`). When the C ABI changes, use
+`just bindings slint_skia` (cbindgen + ffigen). That does **not** compile
+Skia. The standing ban is the Skia *build*, not a forever ban on the one-shot
+bindings refresh after an ABI change.
 
 ## Invariants
 
@@ -102,4 +109,3 @@ carries ~80 unused-field warnings that pub.dev scores against.
 - Linux without the read-back: a GL texture shared with Flutter's context.
 - Android on Vulkan once Slint's `VulkanSurface` gets an Android NDK arm.
 - Keyboard input in `examples/todo_skia` (`SlintView`'s pattern).
-- Regenerate `bindings.g.dart` with ffigen (drops `slint_skia_instance_texture_id`).
