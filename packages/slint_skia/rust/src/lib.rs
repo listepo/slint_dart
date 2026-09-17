@@ -388,10 +388,11 @@ pub extern "C" fn slint_skia_instance_attach_android(
         let handle = handle_of(instance)?;
         let size = texture_size(width, height)?;
         handle.detach();
+        // 1.18: last arg is surface transparency (Flutter Texture keeps alpha).
         handle
             .adapter
             .skia()
-            .set_window_handle(window.clone(), window.clone(), size, None)
+            .set_window_handle(window.clone(), window.clone(), size, None, true)
             .map_err(|e| e.to_string())?;
         handle.attached(Attachment { window }, size);
         Ok(true)
