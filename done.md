@@ -39,3 +39,11 @@ UI testing (`slint_testing`): accessibility-tree queries, clicks, property and c
 ### D10. E2E testing (slint_patrol)
 
 E2E testing (`slint_patrol`): Patrol finders over the live component, tapping and typing through real Flutter gestures (interpreter backend only).
+
+### T1. Skia GPU surface plumbing per platform
+
+Wire Skia GPU surfaces per platform (Metal / GL / Vulkan / D3D) and the Flutter `Texture` widget path. Interpreter and property bridge already worked; GPU surface plumbing and texture export were stubbed.
+
+**Done criteria met:** code, plugins, `examples/todo_skia`, CI `skia-*` jobs, and docs landed. CI green on tip `90b6d17` ([run 35036050220](https://github.com/listepo/slint_dart/actions/runs/35036050220): skia-apple/linux/android/windows + check + release-macos) and on `main` after squash merge of [#6](https://github.com/listepo/slint_dart/pull/6) at `24807ba` (same tree; all skia-* + check success). Local `slint-skia-ffi` build ban stayed.
+
+**Follow-up (optional, not blocking):** regenerate `bindings.g.dart` with ffigen when allowed — hand-declared `@Native`s in `skia_native.dart` remain valid until then (noted in `ideas.md`).
