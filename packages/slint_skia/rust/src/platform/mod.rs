@@ -80,10 +80,10 @@ impl SkiaWindowAdapter {
             window: Window::new(weak.clone()),
             // No surface yet: `set_window_handle` builds Slint's own
             // (Android), `set_surface` takes ours (everywhere else).
-            // Windows has no `default`: without the `softbuffer` feature
-            // (see the workspace manifest) it is not `skia_windowed` there,
-            // so take the Direct3D constructor — identical except for the
-            // `set_window_handle` factory, which Windows never calls.
+            // Windows has no `default` without softbuffer (see Cargo.toml);
+            // take Direct3D — identical except for the `set_window_handle`
+            // factory, which Windows never calls. Apple/Linux use `default`
+            // (Apple gets softbuffer for `skia_windowed`; Linux gets OpenGL).
             #[cfg(target_os = "windows")]
             renderer: SkiaRenderer::default_direct3d(context),
             #[cfg(not(target_os = "windows"))]
