@@ -5,7 +5,7 @@ import 'package:slint_generator/slint_generator.dart';
 /// The `slint` / `slint-build` version the generated crate pins. Must match
 /// the workspace pin in the root `Cargo.toml` (`[workspace.dependencies]`),
 /// which slint-introspect and the FFI crates inherit.
-const slintVersion = '1.17.1';
+const slintVersion = '1.18.0';
 
 /// One `.slint` source going into the AOT crate.
 class SlintAotFile {
@@ -64,7 +64,11 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
-slint = { version = "=$slintVersion", default-features = false, features = ["compat-1-2", "std", "renderer-software", "software-renderer-systemfonts"] }
+slint = { version = "=$slintVersion", default-features = false, features = ["compat-1-2", "std", "renderer-software"] }
+# 1.18: image-decoders/svg are no longer implied by renderer-software alone
+# (they ride in via femtovg/skia/winit backends). AOT embeds SVG/PNG assets
+# and calls Image::load_from_path — unify those features onto i-slint-core.
+i-slint-core = { version = "=$slintVersion", default-features = false, features = ["std", "image-decoders", "svg"] }
 slint-dart-core = { path = "${slintCoreCratePath.replaceAll(r'\', r'\\')}" }
 serde_json = "1"
 

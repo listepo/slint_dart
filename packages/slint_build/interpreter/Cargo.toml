@@ -5,7 +5,6 @@ edition = "2021"
 publish = false
 
 [dependencies]
-slint = { workspace = true, features = ["compat-1-2", "std"] }
 slint-interpreter = { workspace = true, features = ["compat-1-2", "std", "internal", "internal-json"] }
 i-slint-compiler = { workspace = true }
 # For `search_api` only — the element search and geometry readers. Its testing

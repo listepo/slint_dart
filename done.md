@@ -47,3 +47,7 @@ Wire Skia GPU surfaces per platform (Metal / GL / Vulkan / D3D) and the Flutter 
 **Done criteria met:** code, plugins, `examples/todo_skia`, CI `skia-*` jobs, and docs landed. CI green on tip `90b6d17` ([run 35036050220](https://github.com/listepo/slint_dart/actions/runs/35036050220): skia-apple/linux/android/windows + check + release-macos) and on `main` after squash merge of [#6](https://github.com/listepo/slint_dart/pull/6) at `24807ba` (same tree; all skia-* + check success). Local `slint-skia-ffi` build ban stayed.
 
 **Follow-up (optional, not blocking):** regenerate `bindings.g.dart` with ffigen when allowed — hand-declared `@Native`s in `skia_native.dart` remain valid until then (noted in `ideas.md`).
+
+### U1. Slint 1.18.0 bump + dead-weight trim
+
+Bumped workspace Slint crates `=1.17.1` → `=1.18.0` (root `Cargo.toml`, staged `cargoWorkspaceShared`, `slintVersion`, Windows softbuffer override). Renamed introspect feature `software-renderer` → `renderer-software`. Dropped unused `slint` dep from `slint-dart-interpreter`, empty/`bundle-translations` introspect features, and redundant `software-renderer-systemfonts` (now an alias of `renderer-software`). Local `slint-skia-ffi` build stayed banned; skia-* remains CI-only. `skia-safe` jumped 0.99 → 0.153 with the bump — verify on skia CI. Apple(+Windows) enable softbuffer so `skia_windowed` compiles under `default-features = false` (Slint 1.18 `SkiaRenderer::new` / `default`).
