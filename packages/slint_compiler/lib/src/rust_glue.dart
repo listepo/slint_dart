@@ -65,6 +65,10 @@ crate-type = ["staticlib"]
 
 [dependencies]
 slint = { version = "=$slintVersion", default-features = false, features = ["compat-1-2", "std", "renderer-software"] }
+# 1.18: image-decoders/svg are no longer implied by renderer-software alone
+# (they ride in via femtovg/skia/winit backends). AOT embeds SVG/PNG assets
+# and calls Image::load_from_path — unify those features onto i-slint-core.
+i-slint-core = { version = "=$slintVersion", default-features = false, features = ["std", "image-decoders", "svg"] }
 slint-dart-core = { path = "${slintCoreCratePath.replaceAll(r'\', r'\\')}" }
 serde_json = "1"
 
