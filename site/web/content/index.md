@@ -2,17 +2,16 @@
 
 One typed API over interpreter and AOT backends — plus headless and on-device UI testing.
 
-[Getting started](guides/getting-started)
+Start here: **[Getting started](/guides/getting-started)**.
 
 ## Explore
 
-- [Guides](guides) — Getting started, backends, and testing
-
-  - [Packages](packages) — What each package does and when to use it
-
-  - [Examples](examples) — Todo apps on each backend
-
-  - [Contributing](contributing) — Workflow, commands, and PR checklist
+| Section | Contents |
+|---|---|
+| [Guides](/guides) | Getting started, backends, testing |
+| [Packages](/packages) | What each package does and when to use it |
+| [Examples](/examples) | Todo apps on each backend |
+| [Contributing](/contributing) | Workflow, commands, and PR checklist |
 
 ## Layout
 
@@ -28,5 +27,9 @@ One typed API, two independent backends behind it:
                     └─ compile-time: slint_compiler ──▶ foo.aot.g.dart + app hooks
 ```
 
-Start with [Getting started](guides/getting-started/), then the
-[package reference](packages/) and [backends guide](guides/backends/).
+`SlintComponent.load('ui/…')` returns the generated wrapper after one
+`register()` at startup. Debug ships the interpreter; release/profile ships
+the AOT dylib. App code names neither backend.
+
+Continue with the [package reference](/packages) and the
+[backends guide](/guides/backends).
