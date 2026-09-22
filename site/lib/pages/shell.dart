@@ -48,12 +48,6 @@ Component siteHeader({required String active}) {
             [.text(label)],
           ),
         button(
-          [
-            RawText(_iconSun),
-            RawText(_iconMoon),
-            RawText(_iconSystem),
-            span(attributes: {'data-theme-label': ''}, [.text('system')]),
-          ],
           type: ButtonType.button,
           id: 'theme-toggle',
           classes: 'theme-toggle',
@@ -61,6 +55,12 @@ Component siteHeader({required String active}) {
             'data-theme': 'system',
             'aria-label': 'Theme: system (follows OS)',
           },
+          [
+            RawText(_iconSun),
+            RawText(_iconMoon),
+            RawText(_iconSystem),
+            span(attributes: {'data-theme-label': ''}, [.text('system')]),
+          ],
         ),
       ]),
     ]),
