@@ -48,7 +48,7 @@ class MarkdownDocPage extends StatelessComponent {
     final title = page?.title ?? 'Not found';
     final hasH1 = htmlBody.contains('<h1');
 
-    return fragment([
+    return Component.fragment([
       siteHeader(active: _section),
       div(classes: 'wrap layout', [
         docsSidebar(currentRoute: route),

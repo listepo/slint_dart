@@ -37,6 +37,10 @@ jobs:
         working-directory: site
         run: dart pub get
 
+      - name: Lint Dart
+        working-directory: site
+        run: dart analyze --fatal-infos
+
       - name: Build static site
         working-directory: site
         run: jaspr build

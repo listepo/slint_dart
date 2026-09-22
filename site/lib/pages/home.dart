@@ -15,7 +15,7 @@ class HomePage extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    return fragment([
+    return Component.fragment([
       siteHeader(active: 'home'),
       div(classes: 'wrap', [
         section(classes: 'hero', [
