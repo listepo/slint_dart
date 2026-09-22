@@ -25,7 +25,7 @@ Elements are found through the test app; properties and callbacks go
 through the wrapper, so nothing names a Slint property. No device, no
 window. Reach for it to check a component's logic fast.
 `examples/todo/test/todo_headless_test.dart` drives `TodoApp` this way. See
-the [testing package]().
+the [testing package](/packages/slint_testing).
 
 ## Live: slint_patrol
 
@@ -48,4 +48,4 @@ drives the real `TodoPage` this way.
 use `slintSettle()` (a bounded handful of frames) where a Flutter-only test
 would call `pumpAndSettle`. Element queries need the interpreter backend
 (debug builds, including `flutter test` and `patrol test`). See the
-[Patrol package]().
+[Patrol package](/packages/slint_patrol).

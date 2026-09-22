@@ -2,7 +2,7 @@
 
 [Slint](https://slint.dev) UI toolkit ↔ Flutter integration.
 
-**Docs site:** [listepo.github.io/slint_dart](https://listepo.github.io/slint_dart/) (Hugo; deployed from `main`).
+**Docs site:** [listepo.github.io/slint_dart](https://listepo.github.io/slint_dart/) (Jaspr; deployed from `main`).
 
 ## Layout
 

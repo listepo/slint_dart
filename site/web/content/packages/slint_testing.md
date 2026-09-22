@@ -137,6 +137,6 @@ element query itself.
 ## Testing the running app instead
 
 This package tests a component headlessly — fast, but not the app a user
-touches. [`slint_patrol`]() covers that: Patrol finders over
+touches. [`slint_patrol`](/packages/slint_patrol) covers that: Patrol finders over
 the live component in a real widget tree, tapping and typing through real
 Flutter gestures.
