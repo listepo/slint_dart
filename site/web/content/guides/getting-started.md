@@ -1,6 +1,6 @@
 This guide is for a **new Flutter app** that pulls the packages from
 [pub.dev](https://pub.dev). You do not need to clone the `slint_dart`
-monorepo. The [todo example]() in this
+monorepo. The [todo example](/examples/todo) in this
 repository is the full reference implementation — same layout, more moving
 parts — but the steps below are enough to ship a first screen.
 
@@ -93,7 +93,7 @@ During `flutter build` / `flutter run --release`, the build hook AOT-compiles
 every `ui/**/*.slint` into a static library; the link hook tree-shakes unused
 components into the one code asset the generated `@Native` externs bind to.
 Debug builds skip linking and ship only the interpreter dylib. See
-[Backends]().
+[Backends](/guides/backends).
 
 ## 4. Write a `.slint` file
 
@@ -205,11 +205,11 @@ First `flutter run` / `flutter test` builds native code through the hooks
 
 ## Next steps
 
-- [Backends]() — how the split is generated, not
+- [Backends](/guides/backends) — how the split is generated, not
   looked up at runtime.
-- [Testing]() — headless (`slint_testing`) and live
+- [Testing](/guides/testing) — headless (`slint_testing`) and live
   (`slint_patrol`) UI tests.
-- [todo example]() — registry per component,
+- [todo example](/examples/todo) — registry per component,
   shared UI imports, tree-shaking canary, release size notes.
-- [Contributing]() — if you are hacking the
-  `slint_dart` monorepo itself (`just check`, melos, Hugo docs).
+- [Contributing](/contributing) — if you are hacking the
+  `slint_dart` monorepo itself (`just check`, melos, Jaspr docs site).

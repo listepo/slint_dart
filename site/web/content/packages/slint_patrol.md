@@ -104,7 +104,7 @@ obscurely.
 
 ## How it relates to slint_testing
 
-[`slint_testing`]() tests a component **headlessly**: no
+[`slint_testing`](/packages/slint_testing) tests a component **headlessly**: no
 window, no renderer, no Flutter. It is the fast unit-level tool, and it owns
 the element model — `SlintElementInfo`, which this package reuses.
 

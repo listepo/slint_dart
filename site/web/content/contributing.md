@@ -86,7 +86,7 @@ the apps' `hook/*.dart`, not by Dart imports. `cargo machete` lists
 `slint-skia-ffi`'s Skia dependencies: the skeleton does not reference them
 yet (see its `AGENTS.md`).
 
-Release size is the AOT dylib; the [slint_compiler]()
+Release size is the AOT dylib; the [slint_compiler](/packages/slint_compiler)
 page has the measured breakdown ("Where the bytes go") and the `cargo bloat` recipe.
 
 ## Before opening a PR

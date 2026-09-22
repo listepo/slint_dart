@@ -8,7 +8,7 @@ pixels), shows it with `Texture(textureId:)`, renders from a `Ticker` and
 forwards pointer events. What the backend has not grown yet — callbacks — the
 page reports on screen in the words of the backend's own
 `UnimplementedError`, as it does any error from the GPU path. See the
-[slint_skia package](), "Shortcuts &
+[slint_skia package](/packages/slint_skia), "Shortcuts &
 Ceilings", for what is still a shortcut.
 
 ## Building

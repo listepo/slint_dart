@@ -16,7 +16,7 @@ cd examples/todo && mise exec -- flutter run
 
 There is no runtime path for a `.slint` without a generated wrapper: loading
 a `.slint` in code always gives back its wrapper, in every build mode. See
-the [interpreter package]().
+the [interpreter package](/packages/slint_interpreter).
 
 ## AOT (release/profile)
 
@@ -33,7 +33,7 @@ every `ui/**.slint` plus generated C ABI glue, built as a staticlib. Each
 reads from outside `ui/` are hook dependencies. The
 app's `hook/link.dart` calls `linkSlintAot`: relinks the final dylib from
 that staticlib, keeping only the components the app uses. See the
-[AOT package]() for the pipeline,
+[AOT package](/packages/slint_compiler) for the pipeline,
 the release-size table, and the tree-shaking mechanism.
 
 Component tree-shaking works behind Flutter's record-use flag:
@@ -50,7 +50,7 @@ and absent from the shipped dylib when the flag is on.
 ## Adding a backend
 
 A backend extends `SlintComponentFactory` (see the
-[codegen package]()) and is passed
+[codegen package](/packages/slint_generator)) and is passed
 to the wrapper's `create()` — `defaultFactory` just picks one from the
 package's dependencies at codegen time. The two backends never meet: the
 pick is a `const` branch, so a release binary carries no interpreter path and
