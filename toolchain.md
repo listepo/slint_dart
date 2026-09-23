@@ -12,6 +12,8 @@
 | hugo | mise | Сайт документации | https://github.com/gohugoio/hugo |
 | rustc | rustup / системный | Компилятор Rust | https://github.com/rust-lang/rust |
 | cargo | вместе с rustc | Сборка и зависимости Rust | https://github.com/rust-lang/cargo |
+| ketch | см. README | Устанавливает dunnage | https://github.com/listepo/ketch |
+| dunnage | ketch | Без потерь ужимает `target/` после тестов | https://github.com/listepo/dunnage |
 
 ## cargo
 
@@ -65,3 +67,9 @@ Slint crates pinned exactly at **1.18.0** in the root `Cargo.toml` `[workspace.d
 | test | локально | https://pub.dev/packages/test | Пакет Dart/Flutter |
 | todo_shared | локально | https://pub.dev/packages/todo_shared | Пакет Dart/Flutter |
 | yaml | локально | https://pub.dev/packages/yaml | Пакет Dart/Flutter |
+
+## ketch
+
+| Пакет | Где | Источник | Зачем здесь |
+| --- | --- | --- | --- |
+| dunnage | global | https://github.com/listepo/dunnage | Без потерь ужимает `target/` после тестов |
