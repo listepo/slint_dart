@@ -159,17 +159,3 @@ implementation in `slint-dart-interpreter` that the testing and runtime FFI
 crates each expose. Element queries need the interpreter backend, so they work
 in debug builds — including `flutter test` and `patrol test` — and not in the
 AOT backend of release and profile builds.
-
-## Status / next steps
-
-- [x] Pub + Cargo workspaces, core API, FFI crates, cbindgen/ffigen pipeline
-- [x] `SlintView` widget (blits software frames; lives in the `slint` package)
-- [x] Rust→Dart callbacks via `NativeCallable`
-- [x] Interpreter path end-to-end (example todo app, smoke-tested)
-- [x] Typed codegen (`slint_generator`): `.slint` → `*.g.dart`, one API over both backends via `SlintComponentFactory`
-- [x] Compiled path (`slint_compiler`): `*.aot.g.dart` + slint-build AOT staticlib; backend follows the build mode (debug → interpreter, release/profile → AOT)
-- [x] Build glue: native assets `hook/build.dart` per package + `bazel_worker` cargo worker (`flutter build/run/test` compiles the Rust crates; debug/release via `profile` user-define)
-- [x] Component tree-shaking: app link hook relinks the AOT staticlib keeping only components with a recorded use (`@RecordUse` + `package:record_use` + `CLinker`; active behind `FLUTTER_RECORD_USE=true`, keep-all otherwise)
-- [x] UI testing (`slint_testing`): accessibility-tree queries, clicks, property and callback assertions on `i-slint-backend-testing`, under plain `dart test`
-- [x] E2E testing (`slint_patrol`): Patrol finders over the live component, tapping and typing through real Flutter gestures (interpreter backend only)
-- [ ] Skia GPU surface plumbing per platform (Metal / GL / Vulkan / D3D); `Texture` widget path
