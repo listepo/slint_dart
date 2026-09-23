@@ -55,3 +55,7 @@ Bumped workspace Slint crates `=1.17.1` → `=1.18.0` (root `Cargo.toml`, staged
 ### T2. Regenerate `slint_skia` ffigen bindings (drop stale `texture_id`)
 
 Regenerated `packages/slint_skia/lib/src/bindings.g.dart` via `just bindings slint_skia` (cbindgen + ffigen) so the removed `slint_skia_instance_texture_id` C ABI is no longer declared. Platform attach/detach/pixels remain excluded in `ffigen.yaml` and hand-declared in `skia_native.dart`. `skia_engine.dart` uses `Pointer<Void>` (header has raw `void*`; old short bindings had hand-added typedef aliases). Local Skia build ban stayed. CI green on tip before merge ([run 35224242340](https://github.com/listepo/slint_dart/actions/runs/35224242340): check + release-macos + all skia-*). Squash-merged as [#9](https://github.com/listepo/slint_dart/pull/9) at `f05ae23`.
+
+### T3. Clean up target dirs with dunnage after tests
+
+Added a `dunnage` recipe to the root `justfile` and wired it as a post-dependency of `test` (`test: && dunnage`), so a local test run ends with a lossless cleanup (APFS compression + copy-on-write dedupe, never deletes, keeps mtimes) of this checkout's cargo `target/` dirs. The recipe no-ops with a message when `dunnage` isn't installed, and tolerates its exit code 2 (another build held the lock). Documented `dunnage`/`ketch` in `toolchain.md` (programs table + a `ketch` package table) and noted the cleanup in `AGENTS.md`'s command table section.

@@ -28,7 +28,7 @@ format-fix:
     {{melos}} format:fix
 
 # All tests that run locally: Dart packages, then Flutter packages and examples/todo.
-test:
+test: && dunnage
     {{melos}} test
 
 # dart test in the pure-Dart packages.
@@ -73,3 +73,10 @@ docs-serve:
 # Build the docs site into site/public (what the Pages workflow deploys).
 docs-build:
     mise exec -- hugo --source site --minify
+
+# Lossless cleanup of this checkout's cargo target dir (compress + dedupe); never deletes.
+dunnage:
+    #!/usr/bin/env sh
+    command -v dunnage >/dev/null || { echo "dunnage not found; install it with: ketch install dunnage"; exit 0; }
+    [ -d target ] || exit 0
+    dunnage run target || test $? -eq 2

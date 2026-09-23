@@ -75,6 +75,10 @@ globally activated — run it as `mise exec -- dart run melos run <script>`:
 | `rust:fmt`, `rust:clippy`, `rust:test` | `cargo fmt --all`; `cargo clippy --workspace --exclude slint-skia-ffi --all-targets`; `cargo test --workspace --exclude slint-skia-ffi`. |
 | `check` | analyze, Dart format, `cargo fmt --check`, clippy, Rust tests, tests — what CI should run. |
 
+`just test` ends with a lossless `dunnage` cleanup of this checkout's cargo
+`target/` dirs (compress + dedupe, never deletes; no-op if `dunnage` isn't
+installed).
+
 The scripts are `dart run melos exec` invocations with filter flags rather
 than `exec:`/`packageFilters:` — the former needs no global `melos`, the
 latter prompts for a package unless `--no-select` is passed. Melos is pinned
