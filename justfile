@@ -74,8 +74,9 @@ docs-serve:
 docs-build:
     mise exec -- hugo --source site --minify
 
-# Lossless cleanup of this checkout's cargo target dirs (compress + dedupe); never deletes.
+# Lossless cleanup of this checkout's cargo target dir (compress + dedupe); never deletes.
 dunnage:
     #!/usr/bin/env sh
     command -v dunnage >/dev/null || { echo "dunnage not found; install it with: ketch install dunnage"; exit 0; }
-    dunnage run . || test $? -eq 2
+    [ -d target ] || exit 0
+    dunnage run target || test $? -eq 2
