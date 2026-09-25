@@ -162,8 +162,6 @@ AOT backend of release and profile builds.
 
 ## License
 
-You can use this project under **any** of the following licenses, at your choice:
+This project is licensed under the [MIT License](LICENSE).
 
-1. [GNU GPLv3](LICENSE): free for open source applications on any platform, including embedded systems.
-2. [Royalty-free License](LICENSE-ROYALTY-FREE.md): free for proprietary desktop, mobile, and web applications, as long as you disclose that your application uses this project. Embedded systems are not covered.
-3. [Commercial license](PRICING.md): for proprietary applications, including embedded systems, without the attribution requirement.
+This project uses [Slint](https://slint.dev), the UI toolkit by SixtyFPS GmbH, which is available under its own licenses (GPLv3, Royalty-free, or Commercial). Applications built with it must comply with Slint's license, including crediting Slint where its Royalty-free License requires it.
