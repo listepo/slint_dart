@@ -6,10 +6,19 @@ name: CI
 
 on:
   workflow_dispatch:
+  # Dependabot pull requests: dependabot.yml calls this workflow so they get the
+  # same jobs before its patch-only auto-merge.
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+# Build and test jobs need only to read the repository; a job that needs more
+# (revert-on-failure) declares its own. This also caps these jobs when
+# dependabot.yml calls this workflow with wider permissions.
+permissions:
+  contents: read
 
 jobs:
   check:
