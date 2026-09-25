@@ -1,5 +1,7 @@
 # slint_dart
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=listepo_slint_dart&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=listepo_slint_dart) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=listepo_slint_dart&metric=coverage)](https://sonarcloud.io/component_measures?id=listepo_slint_dart&metric=coverage) [![Tests](https://img.shields.io/sonar/tests/listepo_slint_dart?server=https%3A%2F%2Fsonarcloud.io&compact_message)](https://sonarcloud.io/component_measures?id=listepo_slint_dart&metric=tests)
+
 [Slint](https://slint.dev) UI toolkit ↔ Flutter integration.
 
 **Docs site:** [listepo.github.io/slint_dart](https://listepo.github.io/slint_dart/) (Jaspr; deployed from `main`).
