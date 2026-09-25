@@ -1,5 +1,10 @@
 # Weekly dependency update PRs for the pub workspace, the Cargo workspace and
 # the GitHub Actions the workflows use.
+#
+# .github/workflows/dependabot.yml runs the full CI on every pull request below
+# and merges a patch update once that run is green; minor and major updates are
+# labelled `needs-review` and wait for a human. Patch and minor updates are
+# grouped separately so a patch-only pull request can merge on its own.
 version: 2
 updates:
   # The pub workspace: the root pubspec.yaml lists every package and example
@@ -8,12 +13,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
     commit-message:
       prefix: chore
       include: scope
     groups:
-      pub-minor-and-patch:
-        update-types: [minor, patch]
+      pub-patch:
+        update-types: [patch]
+      pub-minor:
+        update-types: [minor]
     ignore:
       # Pinned to 7.x: melos 8 wants cli_util ^0.5 while ffigen ^21 pins ^0.4
       # (see the root pubspec.yaml).
@@ -25,6 +35,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
     commit-message:
       prefix: chore
       include: scope
@@ -36,17 +49,25 @@ updates:
       # follow (AGENTS.md, "One Slint version, pinned exactly").
       slint:
         patterns: ["slint", "slint-*", "i-slint-*"]
-      cargo-minor-and-patch:
-        update-types: [minor, patch]
+      cargo-patch:
+        update-types: [patch]
+        exclude-patterns: ["slint", "slint-*", "i-slint-*"]
+      cargo-minor:
+        update-types: [minor]
         exclude-patterns: ["slint", "slint-*", "i-slint-*"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
     commit-message:
       prefix: chore
       include: scope
     groups:
+      actions-patch:
+        update-types: [patch]
       actions:
-        patterns: ["*"]
+        update-types: [minor, major]
