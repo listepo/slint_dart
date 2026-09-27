@@ -35,7 +35,7 @@ void main() {
     meta: {
       'description':
           'One typed API over interpreter and AOT backends — plus headless and on-device UI testing.',
-      'theme-color': '#0B57D0',
+      'theme-color': '#F8F9FA',
       'color-scheme': 'light dark',
     },
     head: [
@@ -48,6 +48,7 @@ void main() {
       link(href: 'styles/tokens.css', rel: 'stylesheet'),
       link(href: 'styles/docs.css', rel: 'stylesheet'),
       link(href: 'favicon.svg', rel: 'icon', type: 'image/svg+xml'),
+      link(href: 'images/logo-192.png', rel: 'apple-touch-icon'),
       script(src: 'js/theme.js', defer: true),
     ],
     body: const App(),

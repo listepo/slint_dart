@@ -6,10 +6,12 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - "docs/**"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
       - "site/**"
+      - "docs/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -67,11 +69,17 @@ jobs:
           test -d guides
           test -f packages/index.html
           test -f packages/slint/index.html
+          test -f overview/index.html
+          test -f docs/sonarcloud-setup/index.html
           test ! -d packages/analyzer
           test ! -d content
           # Project Pages subpath
           grep -qE 'base[^>]+href="/slint_dart/"' index.html
           echo "site ok: $(find . -name '*.html' | wc -l | tr -d ' ') html file(s)"
+
+      - name: Verify docs pages, content and internal links
+        working-directory: site
+        run: python3 tool/verify_site.py build/jaspr
 
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'

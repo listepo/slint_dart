@@ -6,7 +6,8 @@ import 'content/markdown_doc.dart';
 import 'pages/home.dart';
 
 /// Root app — multi-page Router for static generation.
-/// Not annotated @client: markdown is read from disk at build time.
+/// Not annotated @client: markdown is read from disk at build time, and the
+/// route list itself is generated from the docs sources (see catalog.dart).
 class App extends StatelessComponent {
   const App({super.key});
 
@@ -14,13 +15,12 @@ class App extends StatelessComponent {
   Component build(BuildContext context) {
     return Router(
       routes: [
-        Route(path: '/', builder: (_, __) => const HomePage()),
+        Route(path: '/', builder: (_, _) => const HomePage()),
         for (final page in docPages)
-          if (page.route != '/')
-            Route(
-              path: page.route,
-              builder: (_, __) => MarkdownDocPage(route: page.route),
-            ),
+          Route(
+            path: page.route,
+            builder: (_, _) => MarkdownDocPage(route: page.route),
+          ),
       ],
     );
   }
