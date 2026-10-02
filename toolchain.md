@@ -12,8 +12,8 @@
 | hugo | mise | Сайт документации | https://github.com/gohugoio/hugo |
 | rustc | rustup / системный | Компилятор Rust | https://github.com/rust-lang/rust |
 | cargo | вместе с rustc | Сборка и зависимости Rust | https://github.com/rust-lang/cargo |
-| ketch | см. README | Устанавливает dunnage | https://github.com/listepo/ketch |
-| dunnage | ketch | Без потерь ужимает `target/` после тестов | https://github.com/listepo/dunnage |
+| ketch | см. README | Устанавливает swarfr | https://github.com/listepo/ketch |
+| swarfr | ketch | Без потерь ужимает `target/` после тестов | https://github.com/listepo/swarfr |
 
 ## cargo
 
@@ -72,4 +72,4 @@ Slint crates pinned exactly at **1.18.0** in the root `Cargo.toml` `[workspace.d
 
 | Пакет | Где | Источник | Зачем здесь |
 | --- | --- | --- | --- |
-| dunnage | global | https://github.com/listepo/dunnage | Без потерь ужимает `target/` после тестов |
+| swarfr | global | https://github.com/listepo/swarfr | Без потерь ужимает `target/` после тестов |
