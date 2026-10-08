@@ -1,47 +1,135 @@
-/* slint_dart — M3 brand tokens (primary #0B57D0), dual theme */
+/* slint_dart brand tokens — Material 3 structure × Apple HIG precision.
+   Source: slint-dart-brand-m3/tokens/tokens.css (primary #0B57D0, mint #006B5F / #5CE1C8).
+   Theme: html[data-theme-resolved] is set before first paint by the boot script;
+   without JS the prefers-color-scheme fallback applies. */
+
 :root {
+  /* Radii — M3, slightly tighter (Apple) */
+  --sd-radius-xs: 6px;
+  --sd-radius-s: 8px;
+  --sd-radius-btn: 10px;
+  --sd-radius-m: 12px;
+  --sd-radius-l: 16px;
+  --sd-radius-xl: 24px;
+  --sd-radius-full: 999px;
+
+  /* Spacing — 4pt */
+  --sd-s1: 4px; --sd-s2: 8px; --sd-s3: 12px; --sd-s4: 16px; --sd-s5: 20px;
+  --sd-s6: 24px; --sd-s8: 32px; --sd-s10: 40px; --sd-s12: 48px;
+
+  /* Type */
+  --sd-font-ui: "Inter", "SF Pro Text", "Roboto", system-ui, -apple-system, sans-serif;
+  --sd-font-display: "Inter", "SF Pro Display", "Roboto", system-ui, -apple-system, sans-serif;
+  --sd-font-mono: "Roboto Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --sd-fs-xs: 11px; --sd-fs-s: 13px; --sd-fs-m: 15px; --sd-fs-l: 17px;
+  --sd-fs-xl: 22px; --sd-fs-2xl: 28px; --sd-fs-3xl: 34px;
+  --sd-lh-tight: 1.2;
+  --sd-lh-body: 1.55;
+  --sd-tracking-tight: -0.02em;
+
+  /* Motion — restrained */
+  --sd-fast: 120ms;
+  --sd-med: 200ms;
+  --sd-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+  /* Layout */
+  --sd-header-h: 60px;
+  --sd-container: 1120px;
+
   --sd-primary: #0B57D0;
   --sd-primary-hover: #0842A0;
+  --sd-primary-container: #D3E3FD;
   --sd-on-primary: #FFFFFF;
-  --sd-primary-soft: #D3E3FD;
+  --sd-on-primary-container: #041E49;
   --sd-secondary: #006B5F;
-  --sd-mint: #5CE1C8;
+  --sd-secondary-container: #C9F5EC;
+  --sd-on-secondary: #FFFFFF;
+  --sd-mint: #5CE1C8;               /* logo bar: the single craft accent */
+  --sd-accent-soft: #0B57D014;
+  --sd-danger: #B3261E;
+  --sd-success: #0F6E56;
+
   --sd-bg: #F8F9FA;
   --sd-surface: #FFFFFF;
   --sd-surface-2: #F1F3F4;
-  --sd-fg: #1C1C1E;
-  --sd-muted: #5F6368;
-  --sd-faint: #80868B;
+  --sd-surface-3: #E8EAED;
+  --sd-on-surface: #1C1C1E;
+  --sd-on-surface-variant: #5F6368;
+  --sd-muted: #80868B;              /* decorative only: < 4.5:1 on bg */
   --sd-outline: #DADCE0;
-  --sd-hairline: rgba(0, 0, 0, 0.08);
-  --sd-danger: #B3261E;
-  --sd-radius-s: 8px;
-  --sd-radius-m: 12px;
-  --sd-radius-l: 16px;
-  --sd-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 0 0 1px var(--sd-hairline);
-  --sd-shadow-md: 0 8px 24px rgba(0,0,0,0.06), 0 0 0 1px var(--sd-hairline);
-  --sd-focus: 0 0 0 2px var(--sd-surface), 0 0 0 4px rgba(11, 87, 208, 0.4);
-  --sd-font: "Inter", "Roboto", system-ui, -apple-system, sans-serif;
-  --sd-mono: "Roboto Mono", "SF Mono", ui-monospace, monospace;
+  --sd-outline-strong: #BDC1C6;
+  --sd-hairline: #00000014;
+  --sd-code-bg: #F6F8FA;
+
+  --sd-shadow-sm: 0 1px 2px #0000000A, 0 0 0 1px var(--sd-hairline);
+  --sd-shadow-md: 0 4px 16px #0000000F, 0 0 0 1px var(--sd-hairline);
+  --sd-shadow-lg: 0 12px 40px #00000014;
+  --sd-focus-ring: 0 0 0 2px var(--sd-surface), 0 0 0 4px #0B57D099;   /* brand double stroke; 60% for 3:1 non-text contrast */
   color-scheme: light;
 }
+
 html[data-theme-resolved="dark"] {
   --sd-primary: #A8C7FA;
   --sd-primary-hover: #D3E3FD;
+  --sd-primary-container: #0842A0;
   --sd-on-primary: #062E6F;
-  --sd-primary-soft: #0842A0;
-  --sd-secondary: #55DBC8;
+  --sd-on-primary-container: #D3E3FD;
+  --sd-secondary: #5CE1C8;
+  --sd-secondary-container: #005048;
+  --sd-on-secondary: #003731;
+  --sd-accent-soft: #A8C7FA1F;
+  --sd-danger: #F2B8B5;
+  --sd-success: #6CDBB0;
+
   --sd-bg: #0E0E10;
   --sd-surface: #1C1C1E;
   --sd-surface-2: #2C2C2E;
-  --sd-fg: #F5F5F7;
-  --sd-muted: #A1A1A6;
-  --sd-faint: #8E8E93;
+  --sd-surface-3: #3A3A3C;
+  --sd-on-surface: #F5F5F7;
+  --sd-on-surface-variant: #A1A1A6;
+  --sd-muted: #8E8E93;
   --sd-outline: #38383A;
-  --sd-hairline: rgba(255, 255, 255, 0.08);
-  --sd-danger: #F2B8B5;
-  --sd-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px var(--sd-hairline);
-  --sd-shadow-md: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px var(--sd-hairline);
-  --sd-focus: 0 0 0 2px var(--sd-surface), 0 0 0 4px rgba(168, 199, 250, 0.5);
+  --sd-outline-strong: #48484A;
+  --sd-hairline: #FFFFFF14;
+  --sd-code-bg: #161618;
+
+  --sd-shadow-sm: 0 1px 2px #00000066, 0 0 0 1px var(--sd-hairline);
+  --sd-shadow-md: 0 4px 16px #00000080, 0 0 0 1px var(--sd-hairline);
+  --sd-shadow-lg: 0 12px 40px #000000A6;
+  --sd-focus-ring: 0 0 0 2px var(--sd-bg), 0 0 0 4px #A8C7FABF;
   color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme-resolved]) {
+  --sd-primary: #A8C7FA;
+  --sd-primary-hover: #D3E3FD;
+  --sd-primary-container: #0842A0;
+  --sd-on-primary: #062E6F;
+  --sd-on-primary-container: #D3E3FD;
+  --sd-secondary: #5CE1C8;
+  --sd-secondary-container: #005048;
+  --sd-on-secondary: #003731;
+  --sd-accent-soft: #A8C7FA1F;
+  --sd-danger: #F2B8B5;
+  --sd-success: #6CDBB0;
+
+  --sd-bg: #0E0E10;
+  --sd-surface: #1C1C1E;
+  --sd-surface-2: #2C2C2E;
+  --sd-surface-3: #3A3A3C;
+  --sd-on-surface: #F5F5F7;
+  --sd-on-surface-variant: #A1A1A6;
+  --sd-muted: #8E8E93;
+  --sd-outline: #38383A;
+  --sd-outline-strong: #48484A;
+  --sd-hairline: #FFFFFF14;
+  --sd-code-bg: #161618;
+
+  --sd-shadow-sm: 0 1px 2px #00000066, 0 0 0 1px var(--sd-hairline);
+  --sd-shadow-md: 0 4px 16px #00000080, 0 0 0 1px var(--sd-hairline);
+  --sd-shadow-lg: 0 12px 40px #000000A6;
+  --sd-focus-ring: 0 0 0 2px var(--sd-bg), 0 0 0 4px #A8C7FABF;
+  color-scheme: dark;
+  }
 }
